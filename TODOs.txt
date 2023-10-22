@@ -1,0 +1,10 @@
+- Need to look into adding the correct fields to `project.clj` so that the
+  dependencies are properly taken care of. I have added the `deps.edn` file, but
+  I don't know what else needs to be done
+- There's a TODO in `math` that talks about proper color mapping
+- Start building a VERY simple GUI. One in which colors can be adjusted, so that
+  I can test basic functions like `f(z) = z`. Or other things that I can just
+  write myself.
+  - At this point, I'm not going to worry about threading, I don't
+    think. I can deal with that after I get the basics going. No need to make it
+    more complicated right off the bat.
