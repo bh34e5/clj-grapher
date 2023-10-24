@@ -1,4 +1,4 @@
-(ns clj-grapher.gui
+(ns clj-grapher.gui.core
   (:import [javafx.scene Node Scene]
            [javafx.scene.control Label]
            [javafx.scene.layout StackPane]

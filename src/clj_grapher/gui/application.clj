@@ -1,11 +1,11 @@
-(ns clj-grapher.application
+(ns clj-grapher.gui.application
   (:gen-class :extends javafx.application.Application)
-  (:require [clj-grapher.gui :refer [start]])
+  (:require [clj-grapher.gui.core :refer [start]])
   (:import [javafx.application Application]))
 
 (defn -start [this stage]
   (start stage))
 
 (defn launch-application [& args]
-  (Application/launch (Class/forName "clj_grapher.application")
+  (Application/launch (Class/forName "clj_grapher.gui.application")
                       (into-array String args)))
