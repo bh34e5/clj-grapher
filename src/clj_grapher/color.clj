@@ -41,9 +41,9 @@
   ([[& comps]] (apply make-color comps))
   ([r g b] (make-color r g b 1.0))
   ([c1 c2 c3 a method]
-   (ecase
+   (ecase method
      ::rgba (make-color c1 c2 c3 a)
-     ::hsla (let [[r g b] (hsl->rgb [r g b])]
+     ::hsla (let [[r g b] (hsl->rgb [c1 c2 c3])]
               (make-color r g b a))))
   ([r g b a]
    (assert-in-range* 0 255 r g b)
