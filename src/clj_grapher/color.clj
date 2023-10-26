@@ -1,6 +1,6 @@
 (ns clj-grapher.color
   (:require [clojure.math :as math]
-            [clj-utils.core :refer [ecase]]))
+            [clj-utils.core :refer [ecase noisy-clamp]]))
 
 (defn- one-minus [n] (- 1 n))
 
@@ -25,12 +25,15 @@
   [[h s l]]
   (let [chroma (* s (one-minus (abs (one-minus (* 2 l)))))
         segment (/ h 60)
-        x (* chroma (one-minus (abs (one-minus (math/floor-mod segment 2)))))
+        x (* chroma (one-minus (abs (one-minus (mod segment 2)))))
         c-color (nth color-vec (mod (math/floor-div (inc segment) 2) 3))
-        x-color (mod (one-minus segment) 3)
+        x-color (nth color-vec (mod (one-minus (math/floor segment)) 3))
         color-map (assoc {} c-color chroma x-color x)
-        m (- l (/ chroma 2))]
-    (vec (map #(math/floor (* 255 (+ m %)))
+        m (- l (/ chroma 2))
+        mapper (fn [component]
+                 (let [n (math/floor (* 255 (+ m component)))]
+                   (noisy-clamp n 0 255)))]
+    (vec (map mapper
               [(:red color-map 0)
                (:green color-map 0)
                (:blue color-map 0)]))))
