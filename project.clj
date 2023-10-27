@@ -8,7 +8,7 @@
                  [org.openjfx/javafx-controls "17.0.9"]
                  [clj-utils "0.1.0-SNAPSHOT"]]
   :main clj-grapher.entry
-  :aot [clj-grapher.entry clj-grapher.gui.application]
+  :aot [clj-grapher.entry clj-grapher.gui.core]
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
