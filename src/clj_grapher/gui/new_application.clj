@@ -1,4 +1,4 @@
-(ns clj-grapher.gui.core
+(ns clj-grapher.gui.new_application
   (:require [clj-grapher.gui.utils :refer [initialize node-arr]]
             [clj-grapher.math
              :refer
