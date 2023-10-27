@@ -72,6 +72,7 @@
 ;;; testing... no big deal there though.
 (defn compile-function-text [text]
   (try
+    ;;; TODO: compare read-string to load-string
     (let [wrapped (str "(fn [z] " text ")")
           parsed (load-string wrapped)]
       parsed)

@@ -10,12 +10,21 @@
 (defrecord ComplexNumber [real imaginary])
 (def Zero (->ComplexNumber 0 0))
 (def One (->ComplexNumber 1 0))
+(def I (->ComplexNumber 0 1))
 
 (defn c-abs [^ComplexNumber c]
   (math/hypot (:real c) (:imaginary c)))
 
 (defn c-arg [^ComplexNumber c]
   (math/atan2 (:imaginary c) (:real c)))
+
+;;; FIXME: all of these `apply reduce's are broken :)
+(defn c-eql
+  ([c] true)
+  ([c d] (and (== (:real c) (:real d))
+              (== (:imaginary c) (:imaginary d))))
+  ([c d & others]
+   (apply reduce c-eql c d others)))
 
 (defn c-add
   ([] Zero)
@@ -40,26 +49,31 @@
    (apply reduce c-mult c d others)))
 
 ;; defining a base color for less duplication
-(def ^{:private true} base-color (make-color 128 128 128 0))
+(def ^{:private true} base-color (make-color 0 0 0 1.0))
+(def ^{:private true} max-shade (/ 1 2))
 
 (defn- get-abs-shade [^ComplexNumber c]
-  (let [a (c-abs c)
-        frac-a (frac a)]
-    (assoc base-color :alpha frac-a)))
+  (if (c-eql c Zero)
+    base-color
+    (let [a (c-abs c)
+          frac-a (/ (mod a 50) (/ 50 max-shade))]
+      (assoc base-color :alpha frac-a))))
 
 (defn- get-arg-shade [^ComplexNumber c]
-  (let [a (c-arg c)
-        tau (* 2 math/PI)
-        frac-a (/ (mod a tau) tau)]
-    (assoc base-color :alpha frac-a)))
+  (if (c-eql c Zero)
+    base-color
+    (let [a (c-arg c)
+          circle-split (/ math/PI 6)
+          frac-a (/ (mod a circle-split) (/ circle-split max-shade))]
+      (assoc base-color :alpha frac-a))))
 
 ;;; TODO: figure out how I want to map from the magnitude of the complex number
 ;;; to the lightness of the color... I think it might turn into something like
 ;;; the (/ (math/atan n) math/PI) so that n -> infty :: lightness -> 1
 ;;;
-;;; (defn- get-lightness [n]
+;;; (defn- get-lightness [scale n]
 ;;;   (let [half-pi (/ math/PI 2)]
-;;;     (/ (math/atan n) half-pi)))
+;;;     (/ (math/atan (/ n scale)) half-pi)))
 (defn- get-lightness [n]
   (/ n 250)) ;;; FIXME: This causes problems if there are values with modulus
              ;;; larger than the denominator
@@ -89,12 +103,13 @@
    (let [res-color (complex-number->color c)]
      (ecase kwd
        ::none res-color
-       ::abs-only (composite res-color (get-abs-shade c))
-       ::arg-only (composite res-color (get-arg-shade c))
-       ::abs-and-arg (composite* res-color
-                                 (get-abs-shade c)
-                                 (get-arg-shade c))))))
+       ::abs-only (composite (get-abs-shade c) res-color)
+       ::arg-only (composite (get-arg-shade c) res-color)
+       ::abs-and-arg (composite* (get-abs-shade c)
+                                 (get-arg-shade c)
+                                 res-color)))))
 
+;;; TODO: look into using the for comprehensions here?
 (defn- calculate-rectangle*
   [app-func init width height step]
   (let [x-num (/ width step)

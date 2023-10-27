@@ -64,18 +64,20 @@
 
 (defn composite
   [c1 c2]
-  (let [apply-alpha (fn [a-co b-co]
-                      (+ (* a-co (:alpha c1))
-                         (* b-co
-                            (:alpha c2)
-                            (- 1 (:alpha c1)))))
-        alpha-o (apply-alpha 1 1)
-        c1-comps (map #(% c1) (list :red :green :blue))
-        c2-comps (map #(% c2) (list :red :green :blue))
-        new-comps (map #(/ (apply-alpha %1 %2) alpha-o)
-                       c1-comps
-                       c2-comps)]
-    (make-color (conj (vec new-comps) alpha-o))))
+  (if (== 0.0 (:alpha c1) (:alpha c2))
+    (make-color 0 0 0 0.0)
+    (let [apply-alpha (fn [a-co b-co]
+                        (+ (* a-co (:alpha c1))
+                           (* b-co
+                              (:alpha c2)
+                              (- 1 (:alpha c1)))))
+          alpha-o (apply-alpha 1 1)
+          c1-comps (map #(% c1) (list :red :green :blue))
+          c2-comps (map #(% c2) (list :red :green :blue))
+          new-comps (map #(/ (apply-alpha %1 %2) alpha-o)
+                         c1-comps
+                         c2-comps)]
+      (make-color (conj (vec new-comps) alpha-o)))))
 
 (defn composite*
   [& colors]
