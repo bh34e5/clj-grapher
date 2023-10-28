@@ -1,5 +1,12 @@
 (ns clj-grapher.gui.utils
-  (:import [javafx.scene Node]))
+  (:import [javafx.scene Node]
+           [javafx.scene.text Font FontWeight]))
+
+(def default-font-bold
+  (let [default (Font/getDefault)]
+    (Font/font (.getFamily default)
+               FontWeight/BOLD
+               (.getSize default))))
 
 (defmacro initialize
   "Creates a new instance of `cls', binds that instance to `this', and then runs

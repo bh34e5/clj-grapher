@@ -1,26 +1,20 @@
 (ns clj-grapher.gui.application
   (:require [clj-grapher.gui.utils :refer [initialize node-arr]]
+            [clj-grapher.gui.inputs
+             :refer
+             [make-function-panel make-selection-panel]]
             [clj-grapher.math
              :refer
-             [->ComplexNumber Zero calculate-rectangle get-color-type]])
-  (:import [javafx.event ActionEvent EventHandler]
-           [javafx.scene Node Scene]
+             [->ComplexNumber Zero calculate-rectangle get-color-type]]
+            [clj-grapher.gui.types
+             :refer
+             [register-event-listener! map->Application notify]])
+  (:import [javafx.event EventHandler]
+           [javafx.scene Scene]
            [javafx.scene.canvas Canvas]
-           [javafx.scene.control Button CheckBox Label TextField]
-           [javafx.scene.layout BorderPane GridPane HBox StackPane]
-           [javafx.scene.paint Color]
-           [javafx.scene.text Font FontWeight Text TextFlow]
-           [javafx.stage Stage]))
-
-(def ^{:private true} function-prompt-text "(+ 2 z)")
-
-(def default-font-bold
-  (let [default (Font/getDefault)]
-    (Font/font (.getFamily default)
-               FontWeight/BOLD
-               (.getSize default))))
-
-(defrecord Application [function show-mod-lines show-arg-lines event-system])
+           [javafx.scene.control Button]
+           [javafx.scene.layout BorderPane StackPane]
+           [javafx.scene.paint Color]))
 
 (defn initialize-application []
   (ref (map->Application {:function nil
@@ -28,74 +22,8 @@
                           :show-arg-lines true
                           :event-system {}})))
 
-(defn set-function-text! [application text]
-  (dosync
-    (alter application assoc :function text)))
-
-(defn set-show-lines! [application line-type show?]
-  (dosync
-    (alter application assoc line-type show?)))
-
-(defn register-event-listener!
-  [application event-name listener]
-  (dosync
-    (let [id (gensym)
-          modify (fn [application]
-                   (let [e-sys (:event-system application)
-                         found-or-map (get e-sys event-name {})
-                         upd-listener (assoc found-or-map id listener)
-                         upd (assoc e-sys event-name upd-listener)]
-                     (assoc application :event-system upd)))]
-      (alter application modify)
-      id)))
-
-(defn deregister-event-listener!
-  [application event-name id]
-  (dosync
-    (let [modify (fn [application]
-                   (let [cur (get (:event-system application) event-name)
-                         upd (dissoc cur id)]
-                     (assoc application :event-system upd)))]
-      (alter application modify))))
-
-(defn notify [application event-name & args]
-  (doseq [listener (vals (get (:event-system @application) event-name))]
-    (apply listener args)))
-
-;;; TODO: Need to figure out what I want to do with this. Right now, I don't
-;;; think I have the ability to use arithmetic functions because to do so would
-;;; require having access to c-add, etc... But in the future, I want to parse
-;;; anyway, so when I get to that point, that is when I can conver them into the
-;;; correct multiplication/addition, etc...
-;;; And right now, because I can access `:real' and `:imaginary', this is less
-;;; of a problem than I thought. I just have to do a little bit more work in
-;;; testing... no big deal there though.
-(defn compile-function-text [text]
-  (try
-    ;;; TODO: compare read-string to load-string
-    (let [wrapped (str "(fn [z] " text ")")
-          parsed (load-string wrapped)]
-      parsed)
-    (catch Exception e
-      nil)))
-
 ;;; TODO: fill this in to alert the user their function is bad
 (defn show-alert [] nil)
-
-(defn make-function-panel [application]
-  (let [field (initialize TextField []
-                (.setPromptText function-prompt-text))
-        label-text (initialize Text ["f(z) = "]
-                     (.setFont default-font-bold))
-        label-flow (TextFlow. (node-arr label-text))
-        button (initialize Button ["Graph"]
-                 (.setOnAction
-                  (reify
-                    EventHandler
-                    (handle [_ event]
-                      (set-function-text! application (.getText field))
-                      (notify application ::update-function)))))]
-    (HBox. 5.0 (node-arr label-flow field button))))
 
 (defn color-context
   [context result-mat x-start y-start]
@@ -133,7 +61,7 @@
             (handle-update-function []
               (println "Got change in function. Current application"
                        @application)
-              (let [input-fn (compile-function-text (:function @application))
+              (let [input-fn (:function @application)
                     color-type (get-color-type (:show-mod-lines @application)
                                                (:show-arg-lines @application))]
                 (if input-fn
@@ -157,31 +85,6 @@
                                 ::update-function
                                 handle-update-function))
     (StackPane. (node-arr canvas))))
-
-(defn make-line-checkbox [application line-type]
-  (initialize CheckBox []
-    (.setSelected true)
-    (.setOnAction
-     (reify
-       EventHandler
-       (handle [_ event]
-         (set-show-lines! application line-type (.isSelected this))
-         (notify application ::update-line-type line-type))))))
-
-(defn make-selection-panel [application]
-  (let [info-label-text (initialize Text ["Select options for the graph"]
-                          (.setFont default-font-bold))
-        info-label-flow (TextFlow. (node-arr info-label-text))
-        cb-mod (make-line-checkbox application :show-mod-lines)
-        cb-arg (make-line-checkbox application :show-arg-lines)
-        label-mod (Label. "Modulus Lines")
-        label-arg (Label. "Argument Lines")]
-    (initialize GridPane []
-      (.setVgap 5.0)
-      (.setHgap 10.0)
-      (.add info-label-flow 0 0 2 1)
-      (.addRow 1 (node-arr cb-mod label-mod))
-      (.addRow 2 (node-arr cb-arg label-arg)))))
 
 (defn restart-application [application]
   (notify application ::restart-application))
