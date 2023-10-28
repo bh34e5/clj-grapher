@@ -1,12 +1,10 @@
 (ns clj-grapher.gui.inputs
-  (:require [clj-utils.core :refer [ensure-seq noisy-let]]
-            [clj-grapher.math :refer [->ComplexNumber]]
-            [clj-grapher.gui.utils
-             :refer
-             [default-font-bold initialize node-arr]]
+  (:require [clj-grapher.math :refer [->ComplexNumber]]
             [clj-grapher.gui.types
-             :refer
-             [notify set-function! set-show-lines!]])
+             :refer [notify set-function! set-show-lines!]]
+            [clj-grapher.gui.utils
+             :refer [default-font-bold initialize node-arr]]
+            [clj-utils.core :refer [ensure-seq noisy-let]])
   (:import [javafx.event EventHandler]
            [javafx.scene.control Button CheckBox Label TextField]
            [javafx.scene.layout GridPane HBox]
@@ -29,13 +27,19 @@
    '* 'clj-grapher.math/c-mult
    '/ 'clj-grapher.math/c-div})
 
+(defn- final-symbol-check
+  [input]
+  (if-not (= 'z input)
+    (throw (ex-info "Unexpected symbol in function" {:symbol input}))
+    input))
+
 (defn- numerical-replacement
   [input]
   (if (number? input)
     (->ComplexNumber input 0)
     (if (= 'i input)
       clj-grapher.math/I
-      input)))
+      (final-symbol-check input))))
 
 (defn- code-walker
   [input]

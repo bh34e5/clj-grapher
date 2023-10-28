@@ -1,6 +1,6 @@
 (ns clj-grapher.math
-  (:require [clojure.math :as math]
-            [clojure.core.async :as async :refer [<!! <! >!! >!]]
+  (:require [clojure.core.async :as async :refer [<!! <! >!! >!]]
+            [clojure.math :as math]
             [clj-grapher.color :refer [make-color composite composite*]]
             [clj-utils.core :refer [ecase]]))
 
