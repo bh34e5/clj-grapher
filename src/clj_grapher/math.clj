@@ -18,13 +18,12 @@
 (defn c-arg [^ComplexNumber c]
   (math/atan2 (:imaginary c) (:real c)))
 
-;;; FIXME: all of these `apply reduce's are broken :)
 (defn c-eql
   ([c] true)
   ([c d] (and (== (:real c) (:real d))
               (== (:imaginary c) (:imaginary d))))
   ([c d & others]
-   (apply reduce c-eql c d others)))
+   (reduce c-eql (apply list c d others))))
 
 (defn c-add
   ([] Zero)
@@ -32,7 +31,13 @@
   ([c d] (->ComplexNumber (+ (:real c) (:real d))
                           (+ (:imaginary c) (:imaginary d))))
   ([c d & others]
-   (apply reduce c-add c d others)))
+   (reduce c-add (apply list c d others))))
+
+(defn c-sub
+  ([c] (->ComplexNumber (- (:real c)) (- (:imaginary c))))
+  ([c d] (c-add c (c-sub d)))
+  ([c d & others]
+   (c-sub c (apply c-add d others))))
 
 (defn c-const-mult
   ([] One)
@@ -46,7 +51,18 @@
                           (+ (* (:real c) (:imaginary d))
                              (* (:imaginary c) (:real d)))))
   ([c d & others]
-   (apply reduce c-mult c d others)))
+   (reduce c-mult (apply list c d others))))
+
+(defn c-div
+  ([c] (let [r (:real c)
+             i (:imaginary c)
+             denom (+ (* r r) (* i i))]
+         (if (zero? denom)
+           (->ComplexNumber 5000 5000) ;;; FIXME: handle infinity
+           (->ComplexNumber (/ r denom) (/ i denom)))))
+  ([c d] (c-mult c (c-div d)))
+  ([c d & others]
+   (c-div c (apply c-mult d others))))
 
 ;; defining a base color for less duplication
 (def ^{:private true} base-color (make-color 0 0 0 1.0))

@@ -1,5 +1,6 @@
 (ns clj-grapher.gui.inputs
   (:require [clj-utils.core :refer [ensure-seq noisy-let]]
+            [clj-grapher.math :refer [->ComplexNumber]]
             [clj-grapher.gui.utils
              :refer
              [default-font-bold initialize node-arr]]
@@ -15,24 +16,45 @@
 
 (def ^{:private true} function-prompt-text "(+ 2 z)")
 
-;;; TODO: Need to figure out what I want to do with this. Right now, I don't
-;;; think I have the ability to use arithmetic functions because to do so would
-;;; require having access to c-add, etc... But in the future, I want to parse
-;;; anyway, so when I get to that point, that is when I can conver them into the
-;;; correct multiplication/addition, etc...
-;;; And right now, because I can access `:real' and `:imaginary', this is less
-;;; of a problem than I thought. I just have to do a little bit more work in
-;;; testing... no big deal there though.
+;;; TODO: Here is a base implementation that allows me to convert +, -, *, and /
+;;; into the corresponding "complex" variants. Future optimizations include
+;;; shuffling the values so that constants can be grouped and combined, and
+;;; other things that I come up with later :)
+;;; This is also still just a partial implementation as it still requires the
+;;; user to input the function in prefix notation instead of the familiar in-fix
+;;; notation.
+(def ^{:private true} allowed-fns-to-counterparts
+  {'+ 'clj-grapher.math/c-add
+   '- 'clj-grapher.math/c-sub
+   '* 'clj-grapher.math/c-mult
+   '/ 'clj-grapher.math/c-div})
+
+(defn- numerical-replacement
+  [input]
+  (if (number? input)
+    (->ComplexNumber input 0)
+    (if (= 'i input)
+      clj-grapher.math/I
+      input)))
+
+(defn- code-walker
+  [input]
+  (if (seq? input)
+    (map code-walker input)
+    (if-let [replacement (get allowed-fns-to-counterparts input)]
+      replacement
+      (numerical-replacement input))))
+
 (defmacro ->complex-math
   [func-text]
   `(fn [~'z]
-     ~func-text))
+     ~(code-walker func-text)))
 
 (defn compile-function-text [text]
   (try
-    ;;; TODO: compare read-string to load-string
     (noisy-let [inner (read-string text)
-                mid-step (cons '->complex-math (ensure-seq inner))
+                mid-step (cons 'clj-grapher.gui.inputs/->complex-math
+                               (list inner))
                 parsed (eval mid-step)]
       (println parsed)
       parsed)
