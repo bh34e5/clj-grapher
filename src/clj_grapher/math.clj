@@ -59,7 +59,7 @@
              denom (+ (* r r) (* i i))]
          (if (zero? denom)
            (->ComplexNumber 5000 5000) ;;; FIXME: handle infinity
-           (->ComplexNumber (/ r denom) (/ i denom)))))
+           (->ComplexNumber (/ r denom) (/ (- i) denom)))))
   ([c d] (c-mult c (c-div d)))
   ([c d & others]
    (c-div c (apply c-mult d others))))
@@ -125,9 +125,47 @@
                                  (get-arg-shade c)
                                  res-color)))))
 
+(declare ^{:private true} read-calculate-loop)
+
+(def ^{:private true} calculation-manager-chan-req (async/chan 1))
+(def ^{:private true} calculation-manager-chan-res (async/chan 1))
+
+;;; TODO: figure out how to kill this thread when the application closes...
+(def ^{:private true} calculation-manager-thread
+  (Thread. #(read-calculate-loop)))
+
+(defn restart-calculation-manager []
+  (when calculation-manager-chan-req
+    (async/close! calculation-manager-chan-req))
+  (when calculation-manager-chan-res
+    (async/close! calculation-manager-chan-res))
+  (def ^{:private true} calculation-manager-chan-req (async/chan 1))
+  (def ^{:private true} calculation-manager-chan-res (async/chan 1))
+  (def ^{:private true} calculation-manager-thread
+    (Thread. #(read-calculate-loop))))
+
+(defn- pool-calc
+  [app-func input-map]
+  (let [res (object-array (count input-map))
+        futures (mapv #(let [[ind row-arr] %1]
+                         (future (aset res ind (mapv app-func row-arr))))
+                      (map-indexed vector input-map))]
+    (mapv deref futures)
+    (seq res)))
+
+(defn- read-calculate-loop []
+  (println (.getName (Thread/currentThread)))
+  (let [[app-func input-map] (<!! calculation-manager-chan-req)
+        res (pool-calc app-func input-map)]
+    (>!! calculation-manager-chan-res res))
+  (recur))
+
+
 ;;; TODO: look into using the for comprehensions here?
 (defn- calculate-rectangle*
   [app-func init width height step]
+  (when (= Thread$State/NEW (.getState calculation-manager-thread))
+    (.start calculation-manager-thread))
   (let [x-num (/ width step)
         y-num (/ height step)
         row-gen (fn [yi]
@@ -137,7 +175,8 @@
         arr (map row-gen
                  (take y-num
                        (iterate (partial + step) (:imaginary init))))]
-    (map #(map app-func %) arr)))
+    (>!! calculation-manager-chan-req [app-func arr])
+    (<!! calculation-manager-chan-res)))
 
 (defn calculate-rectangle
   ([func init width height step]
