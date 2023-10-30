@@ -130,7 +130,6 @@
 (def ^{:private true} calculation-manager-chan-req (async/chan 1))
 (def ^{:private true} calculation-manager-chan-res (async/chan 1))
 
-;;; TODO: figure out how to kill this thread when the application closes...
 (def ^{:private true} calculation-manager-thread
   (Thread. #(read-calculate-loop)))
 
@@ -165,7 +164,9 @@
 (defn- calculate-rectangle*
   [app-func init width height step]
   (when (= Thread$State/NEW (.getState calculation-manager-thread))
-    (.start calculation-manager-thread))
+    (doto calculation-manager-thread
+      (.setDaemon true) ;; set this thread to be a daemon so that the
+      (.start)))        ;; JVM properly exits on close
   (let [x-num (/ width step)
         y-num (/ height step)
         row-gen (fn [yi]
