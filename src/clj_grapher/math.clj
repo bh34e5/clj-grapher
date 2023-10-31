@@ -2,7 +2,7 @@
   (:require [clojure.core.async :as async :refer [<!! <! >!! >!]]
             [clojure.math :as math]
             [clj-grapher.color :refer [make-color composite composite*]]
-            [clj-utils.core :refer [ecase]]))
+            [clj-utils.core :refer [ecase noisy-clamp]]))
 
 (defn frac [n]
   (- n (math/floor n)))
@@ -90,17 +90,22 @@
 ;;; (defn- get-lightness [scale n]
 ;;;   (let [half-pi (/ math/PI 2)]
 ;;;     (/ (math/atan (/ n scale)) half-pi)))
-(defn- get-lightness [n]
-  (/ n 250)) ;;; FIXME: This causes problems if there are values with modulus
-             ;;; larger than the denominator
+;;; (defn- get-lightness [n]
+;;;   (/ n 250)) ;;; FIXME: This causes problems if there are values with
+;;;              ;;; modulus larger than the denominator
+(defn- get-lightness [scale n]
+  (let [pith (/ math/PI)
+        root-n-by-scale (math/sqrt (/ n scale))
+        clamped (noisy-clamp root-n-by-scale 0 1)]
+    (* 2 pith (math/asin clamped))))
 
-(defn complex-number->color [^ComplexNumber c]
+(defn complex-number->color [scale ^ComplexNumber c]
   (let [argument (c-arg c)
         tau (* 2 math/PI)
         hue (* 360
                (/ (mod argument tau) tau))
         saturation 0.5
-        lightness (get-lightness (c-abs c))]
+        lightness (get-lightness scale (c-abs c))]
     (make-color hue saturation lightness 1.0 :clj-grapher.color/hsla)))
 
 (defn get-color-type
@@ -114,9 +119,9 @@
       ::none)))
 
 (defn get-color-from-result
-  ([^ComplexNumber c] (get-color-from-result c ::abs-and-arg))
-  ([^ComplexNumber c kwd]
-   (let [res-color (complex-number->color c)]
+  ([scale ^ComplexNumber c] (get-color-from-result scale c ::abs-and-arg))
+  ([scale ^ComplexNumber c kwd]
+   (let [res-color (complex-number->color scale c)]
      (ecase kwd
        ::none res-color
        ::abs-only (composite (get-abs-shade c) res-color)
@@ -180,13 +185,13 @@
     (<!! calculation-manager-chan-res)))
 
 (defn calculate-rectangle
-  ([func init width height step]
+  ([func scale init width height step]
    (let [app-func (fn [z]
                     (let [v (func z)]
-                      (get-color-from-result v)))]
+                      (get-color-from-result scale v)))]
      (calculate-rectangle* app-func init width height step)))
-  ([func color-type init width height step]
+  ([func color-type scale init width height step]
    (let [app-func (fn [z]
                     (let [v (func z)]
-                      (get-color-from-result v color-type)))]
+                      (get-color-from-result scale v color-type)))]
      (calculate-rectangle* app-func init width height step))))

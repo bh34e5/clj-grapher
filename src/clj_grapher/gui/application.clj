@@ -14,6 +14,7 @@
   (ref (map->Application {:function nil
                           :show-mod-lines true
                           :show-arg-lines true
+                          :scale 250
                           :event-system {}})))
 
 (defn restart-application [application]

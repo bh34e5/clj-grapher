@@ -1,6 +1,10 @@
 (ns clj-grapher.gui.types)
 
-(defrecord Application [function show-mod-lines show-arg-lines event-system])
+(defrecord Application [function
+                        show-mod-lines
+                        show-arg-lines
+                        scale
+                        event-system])
 
 (defn set-function! [application func]
   (dosync
@@ -9,6 +13,10 @@
 (defn set-show-lines! [application line-type show?]
   (dosync
     (alter application assoc line-type show?)))
+
+(defn set-scale! [application scale]
+  (dosync
+    (alter application assoc :scale scale)))
 
 (defn register-event-listener!
   [application event-name listener]
@@ -33,5 +41,6 @@
       (alter application modify))))
 
 (defn notify [application event-name & args]
+  (println "Got a notification!" event-name args)
   (doseq [listener (vals (get (:event-system @application) event-name))]
     (apply listener args)))

@@ -53,6 +53,7 @@
                   (let [res (calculate-rectangle
                              input-fn
                              color-type
+                             (:scale @application)
                              (->ComplexNumber (- half-width) (- half-height))
                              width
                              height
