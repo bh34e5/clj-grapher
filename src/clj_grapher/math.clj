@@ -64,6 +64,29 @@
   ([c d & others]
    (c-div c (apply c-mult d others))))
 
+(defn c-exp [c]
+  (let [mag (math/exp (:real c))
+        imag (:imaginary c)
+        arg (->ComplexNumber (math/cos imag) (math/sin imag))]
+    (c-const-mult mag arg)))
+
+(defn c-sin [c]
+  (let [iz (* I c)
+        exp-iz (c-exp iz)
+        exp-neg-iz (c-exp (- iz))]
+    (c-div (c-sub exp-iz exp-neg-iz) (->ComplexNumber 0 2))))
+
+(defn c-cos [c]
+  (let [iz (* I c)
+        exp-iz (c-exp iz)
+        exp-neg-iz (c-exp (- iz))]
+    (c-div (c-add exp-iz exp-neg-iz) (->ComplexNumber 2 0))))
+
+(defn c-tan [c]
+  (let [csin (c-sin c)
+        ccos (c-cos c)]
+    (c-div csin ccos)))
+
 ;; defining a base color for less duplication
 (def ^{:private true} base-color (make-color 0 0 0 1.0))
 (def ^{:private true} max-shade (/ 1 2))

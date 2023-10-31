@@ -25,10 +25,14 @@
 ;;; user to input the function in prefix notation instead of the familiar in-fix
 ;;; notation.
 (def ^{:private true} allowed-fns-to-counterparts
-  {'+ 'clj-grapher.math/c-add
-   '- 'clj-grapher.math/c-sub
-   '* 'clj-grapher.math/c-mult
-   '/ 'clj-grapher.math/c-div})
+  {'+   'clj-grapher.math/c-add
+   '-   'clj-grapher.math/c-sub
+   '*   'clj-grapher.math/c-mult
+   '/   'clj-grapher.math/c-div
+   'exp 'clj-grapher.math/c-exp
+   'sin 'clj-grapher.math/c-sin
+   'cos 'clj-grapher.math/c-cos
+   'tan 'clj-grapher.math/c-tan})
 
 (defn- final-symbol-check
   [input]
