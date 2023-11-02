@@ -12,22 +12,22 @@
 
 (defn color-context
   [context result-mat x-start y-start]
-  (loop [mat-view result-mat
+  (loop [result-mat result-mat
          y-ind y-start]
-    (let [row (first mat-view)]
-      (when row
-        (loop [row-view row
+    (when (seq result-mat)
+      (let [row (first result-mat)]
+        (loop [row row
                x-ind x-start]
-          (let [pixel (first row-view)]
-            (when pixel
+          (when (seq row)
+            (let [pixel (first row)]
               (doto context
                 (.setFill (Color/rgb (int (:red pixel))
                                      (int (:green pixel))
                                      (int (:blue pixel))
                                      (:alpha pixel)))
-                (.fillRect x-ind y-ind 1 1))
-              (recur (rest row-view) (inc x-ind)))))
-        (recur (rest mat-view) (inc y-ind))))))
+                (.fillRect x-ind y-ind 1 1)))
+            (recur (rest row) (inc x-ind)))))
+      (recur (rest result-mat) (inc y-ind)))))
 
 (defn make-graph-panel [application]
   (let [width 250
