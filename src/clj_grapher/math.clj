@@ -7,6 +7,8 @@
 (defn frac [n]
   (- n (math/floor n)))
 
+;;; TODO: consider moving away from the record, there's no real reason to have
+;;; it here, since I'm not defining any protocols with it...
 (defrecord ComplexNumber [real imaginary])
 (def Zero (->ComplexNumber 0 0))
 (def One (->ComplexNumber 1 0))
@@ -23,7 +25,7 @@
   ([c d] (and (== (:real c) (:real d))
               (== (:imaginary c) (:imaginary d))))
   ([c d & others]
-   (reduce c-eql (apply list c d others))))
+   (reduce c-eql (list* c d others))))
 
 (defn c-add
   ([] Zero)
@@ -31,7 +33,7 @@
   ([c d] (->ComplexNumber (+ (:real c) (:real d))
                           (+ (:imaginary c) (:imaginary d))))
   ([c d & others]
-   (reduce c-add (apply list c d others))))
+   (reduce c-add (list* c d others))))
 
 (defn c-sub
   ([c] (->ComplexNumber (- (:real c)) (- (:imaginary c))))
@@ -51,7 +53,7 @@
                           (+ (* (:real c) (:imaginary d))
                              (* (:imaginary c) (:real d)))))
   ([c d & others]
-   (reduce c-mult (apply list c d others))))
+   (reduce c-mult (list* c d others))))
 
 (defn c-div
   ([c] (let [r (:real c)
@@ -71,15 +73,15 @@
     (c-const-mult mag arg)))
 
 (defn c-sin [c]
-  (let [iz (* I c)
+  (let [iz (c-mult I c)
         exp-iz (c-exp iz)
-        exp-neg-iz (c-exp (- iz))]
+        exp-neg-iz (c-exp (c-sub iz))]
     (c-div (c-sub exp-iz exp-neg-iz) (->ComplexNumber 0 2))))
 
 (defn c-cos [c]
-  (let [iz (* I c)
+  (let [iz (c-mult I c)
         exp-iz (c-exp iz)
-        exp-neg-iz (c-exp (- iz))]
+        exp-neg-iz (c-exp (c-sub iz))]
     (c-div (c-add exp-iz exp-neg-iz) (->ComplexNumber 2 0))))
 
 (defn c-tan [c]
