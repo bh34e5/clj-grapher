@@ -175,12 +175,10 @@
 
 (defn- pool-calc
   [app-func input-map]
-  (let [res (object-array (count input-map))
-        futures (mapv #(let [[ind row-arr] %1]
-                         (future (aset res ind (mapv app-func row-arr))))
-                      (map-indexed vector input-map))]
-    (mapv deref futures)
-    (seq res)))
+  (try
+    (let [futures (map #(future (doall (map app-func %1))) input-map)]
+      (pmap deref futures))
+    (catch Exception e ::calculation-failure)))
 
 (defn- read-calculate-loop []
   (println (.getName (Thread/currentThread)))
@@ -207,7 +205,9 @@
                  (take y-num
                        (iterate (partial + step) (:imaginary init))))]
     (>!! calculation-manager-chan-req [app-func arr])
-    (<!! calculation-manager-chan-res)))
+    (let [res (<!! calculation-manager-chan-res)]
+      (when-not (= res ::calculation-failure)
+        res))))
 
 (defn calculate-rectangle
   ([func scale init width height step]

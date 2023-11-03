@@ -25,7 +25,7 @@
     (.setOnAction
       (reify
         EventHandler
-        (handle [_ this]
+        (handle [_ event]
           (restart-application application))))))
 
 (defn make-application-panel [application]
