@@ -47,8 +47,8 @@
       (.setRight selection-panel)
       (.setBottom restart-pane))))
 
-(def scene-width 600)
-(def scene-height 400)
+(def scene-width 900)
+(def scene-height 600)
 
 (defonce app-vars (ref {}))
 
@@ -70,6 +70,9 @@
           (dosync (alter app-vars dissoc :restart-id))
           (start stage)) ;; complete restart
         (start stage application)))))
+
+;;; TODO: investigate the app not closing completely? I thought
+;;;       I fixed that one, but it may not actually be done...
 
 (defn start
   ([stage] (start stage (initialize-application)))

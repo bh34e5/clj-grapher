@@ -2,13 +2,18 @@
   (:require [clj-grapher.math
              :refer [->ComplexNumber calculate-rectangle get-color-type]]
             [clj-grapher.gui.types :refer [register-event-listener!]]
-            [clj-grapher.gui.utils :refer [node-arr show-alert]])
-  (:import [javafx.scene.canvas Canvas]
+            [clj-grapher.gui.utils :refer [initialize node-arr show-alert]]
+            [clj-utils.core :refer [ecase]])
+  (:import [javafx.geometry Pos]
+           [javafx.scene.canvas Canvas]
            [javafx.scene.control Alert Alert$AlertType ButtonType]
-           [javafx.scene.layout StackPane]
-           [javafx.scene.paint Color]))
+           [javafx.scene.layout GridPane StackPane]
+           [javafx.scene.paint Color]
+           [javafx.scene.shape Line Shape]))
 
 (alias 'gui.app 'clj-grapher.gui.application)
+
+(def^{:private true} dash-height 10) ;; default height of dashes, 10 pixels
 
 (defn color-context
   [context result-mat x-start y-start]
@@ -29,13 +34,110 @@
             (recur (rest row) (inc x-ind)))))
       (recur (rest result-mat) (inc y-ind)))))
 
+(defn- get-axis-mappings
+  [direction]
+  (let [direction-coords (ecase direction
+                           ::hor {:with-axis :x :against-axis :y}
+                           ::ver {:with-axis :y :against-axis :x})
+        {with-axis :with-axis against-axis :against-axis} direction-coords
+        to-name (fn [prefix axis] (keyword (str prefix (name axis))))
+        start-with    (to-name "start-" with-axis)
+        start-against (to-name "start-" against-axis)
+        end-with      (to-name "end-"   with-axis)
+        end-against   (to-name "end-"   against-axis)]
+    [start-with start-against end-with end-against]))
+
+(defn- ruled-line-dash
+  [direction x y height]
+  (let [half-height (/ height 2)
+        [s-with s-against e-with e-against] (get-axis-mappings direction)
+        points (hash-map s-with    x
+                         s-against (- y half-height)
+                         e-with    x
+                         e-against (+ y half-height))]
+    (initialize Line [(:start-x points)
+                      (:start-y points)
+                      (:end-x   points)
+                      (:end-y   points)])))
+
+(defn- to-pixel-dim
+  [ind step offset ratio]
+  (let [number-space-off (+ offset (* ind step))
+        pixel-space-off (* number-space-off ratio)]
+    pixel-space-off))
+
+(defn make-ruled-line
+  [direction start-x start-y length min-val max-val step offset]
+  (let [ratio (/ length (- max-val min-val))
+        end-x (+ start-x length)
+        end-y start-y
+        ;;; TODO: investigate this 1+, decide wether it's necessary,
+        ;;;       if if I just off-ed (by one) myself
+        num-rules (clojure.math/floor (+ 1 (/ (- max-val offset min-val) step)))
+        rules (map #(ruled-line-dash direction
+                                     (to-pixel-dim %1 step offset ratio)
+                                     start-y
+                                     dash-height)
+                   (range num-rules))
+        [s-with s-against e-with e-against] (get-axis-mappings direction)
+        points (hash-map s-with    start-x
+                         s-against start-y
+                         e-with    end-x
+                         e-against end-y)
+        main-line (initialize Line [(:start-x points)
+                                    (:start-y points)
+                                    (:end-x points)
+                                    (:end-y points)])]
+    (reduce #(Shape/union %1 %2) (concat rules (list main-line)))))
+
+(defn make-axis-pane
+  [application direction length min-val max-val step]
+  ;;; TODO: this will interact with registered listener
+  (let [axis-pane (make-ruled-line direction
+                                   0
+                                   (/ dash-height 2)
+                                   length
+                                   min-val
+                                   max-val
+                                   step
+                                   0)]
+    ;;; TODO: add a scroll listener... not sure how I want to do that.
+    ;;;       I don't know if I need to change this to be a class so
+    ;;;       that when scrolling I can just change the shapes? Otherwise,
+    ;;;       I have to create a new pane every scroll event... which
+    ;;;       seems like that would be expensive.
+    axis-pane))
+
 (defn make-graph-panel [application]
   (let [width 250
         height 250
         half-width (/ width 2)
         half-height (/ height 2)
         canvas (Canvas. width height)
-        context (.getGraphicsContext2D canvas)]
+        context (.getGraphicsContext2D canvas)
+        h-axis (make-axis-pane application
+                               ::hor
+                               width
+                               (- half-width)
+                               half-width
+                               25)
+        v-axis (make-axis-pane application
+                               ::ver
+                               height
+                               (- half-height)
+                               half-height
+                               25)
+        border-pane (initialize GridPane []
+                      (.add canvas 0 0)
+                      (.add v-axis 1 0)
+                      (.add h-axis 0 1)
+                      (.setGridLinesVisible false) ;; TODO: remove after debug
+                      ;; This alignment might mean that the StackPane is not
+                      ;; necessary... because it seems to be the alignment of
+                      ;; the actual grid, not the items in the grid
+                      (.setAlignment Pos/CENTER)
+                      (.setHgap 10.0)
+                      (.setVgap 10.0))]
     (doto context
       (.setFill Color/BLUE)
       (.fillRect 0 0 width height))
@@ -74,4 +176,4 @@
                                 handle-update-function)
       ;; call the function to graph initially, if the function exists
       (when (:function @application) (handle-update-function)))
-    (StackPane. (node-arr canvas))))
+    (StackPane. (node-arr border-pane))))
