@@ -46,7 +46,7 @@
             (handle-update-function []
               (println "Got change in function. Current application"
                        @application)
-              (let [input-fn (:function @application)
+              (let [input-fn (get-in @application [:function :object])
                     color-type (get-color-type (:show-mod-lines @application)
                                                (:show-arg-lines @application))]
                 (if input-fn
@@ -71,5 +71,7 @@
                                 handle-update-line-type)
       (register-event-listener! application
                                 ::gui.app/update-function
-                                handle-update-function))
+                                handle-update-function)
+      ;; call the function to graph initially, if the function exists
+      (when (:function @application) (handle-update-function)))
     (StackPane. (node-arr canvas))))

@@ -35,9 +35,24 @@
   [application event-name id]
   (dosync
     (let [modify (fn [application]
-                   (let [cur (get (:event-system application) event-name)
-                         upd (dissoc cur id)]
-                     (assoc application :event-system upd)))]
+                   (let [e-sys (:event-system application)
+                         cur (get e-sys event-name)
+                         cur-or-empty (or cur {})
+                         upd (dissoc cur-or-empty id)]
+                     (if cur
+                       (assoc application
+                            :event-system
+                            (assoc e-sys event-name upd))
+                       application)))]
+      (alter application modify))))
+
+(defn deregister-all-event-listeners!
+  [application & event-names]
+  (dosync
+    (let [modify (fn [application]
+                   (let [e-sys (:event-system application)
+                         after-removal (apply dissoc e-sys event-names)]
+                     (assoc application :event-system after-removal)))]
       (alter application modify))))
 
 (defn notify [application event-name & args]

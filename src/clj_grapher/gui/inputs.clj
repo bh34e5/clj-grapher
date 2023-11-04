@@ -73,7 +73,8 @@
       (println e))))
 
 (defn make-function-panel [application]
-  (let [field (initialize TextField []
+  (let [field (initialize TextField [(or (get-in @application [:function :text])
+                                         "")]
                 (.setPromptText function-prompt-text))
         label-text (initialize Text ["f(z) = "]
                      (.setFont default-font-bold))
@@ -85,13 +86,13 @@
                     (handle [_ event]
                       (let [f-text (.getText field)
                             func (compile-function-text f-text)]
-                        (set-function! application func))
+                        (set-function! application {:text f-text :object func}))
                       (notify application ::gui.app/update-function)))))]
     (HBox. 5.0 (node-arr label-flow field button))))
 
 (defn make-line-checkbox [application line-type]
   (initialize CheckBox []
-    (.setSelected true)
+    (.setSelected (boolean (get @application line-type)))
     (.setOnAction
      (reify
        EventHandler
