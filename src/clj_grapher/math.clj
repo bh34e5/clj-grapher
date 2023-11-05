@@ -2,7 +2,8 @@
   (:require [clojure.core.async :as async :refer [<!! <! >!! >!]]
             [clojure.math :as math]
             [clj-grapher.color :refer [make-color composite composite*]]
-            [clj-utils.core :refer [ecase noisy-clamp]]))
+            [clj-utils.core :refer [ecase noisy-clamp]])
+  (:import [java.math MathContext]))
 
 (defn frac [n]
   (- n (math/floor n)))
@@ -14,8 +15,28 @@
 (def One (->ComplexNumber 1 0))
 (def I (->ComplexNumber 0 1))
 
+(defn- ensure-bigdec [n]
+  (if (and (number? n) (not (instance? BigDecimal n)))
+    (BigDecimal. n)
+    n))
+
+;;; TODO: consider making this dynamic so it can be set... but then again,
+;;;       I don't intend to expose anything to the application so maybe not
+(defn- ensure-complex-bigdec [^ComplexNumber c]
+  (->ComplexNumber (ensure-bigdec (:real c))
+                   (ensure-bigdec (:imaginary c))))
+
+(def ^{:private true} default-precision 128)
+(def ^{:private true} log10-E (ensure-bigdec (math/log10 math/E)))
+(def ^{:private true} tau (ensure-bigdec (* 2 math/PI)))
+
 (defn c-abs [^ComplexNumber c]
-  (math/hypot (:real c) (:imaginary c)))
+  (with-precision default-precision
+    (let [c-bigdec (ensure-complex-bigdec c)
+          r (:real c-bigdec)
+          i (:imaginary c-bigdec)
+          ssum (+ (* r r) (* i i))]
+      (.sqrt ssum MathContext/DECIMAL128))))
 
 (defn c-arg [^ComplexNumber c]
   (math/atan2 (:imaginary c) (:real c)))
@@ -30,46 +51,64 @@
 (defn c-add
   ([] Zero)
   ([c] c)
-  ([c d] (->ComplexNumber (+ (:real c) (:real d))
-                          (+ (:imaginary c) (:imaginary d))))
+  ([c d]
+   (let [c-big (ensure-complex-bigdec c)
+         d-big (ensure-complex-bigdec d)]
+     (->ComplexNumber (+ (:real c-big) (:real d-big))
+                      (+ (:imaginary c-big) (:imaginary d-big)))))
   ([c d & others]
    (reduce c-add (list* c d others))))
 
 (defn c-sub
-  ([c] (->ComplexNumber (- (:real c)) (- (:imaginary c))))
+  ([c] (let [c-big (ensure-complex-bigdec c)]
+         (->ComplexNumber (- (:real c-big)) (- (:imaginary c-big)))))
   ([c d] (c-add c (c-sub d)))
   ([c d & others]
    (c-sub c (apply c-add d others))))
 
 (defn c-const-mult
   ([] One)
-  ([n c] (->ComplexNumber (* n (:real c)) (* n (:imaginary c)))))
+  ([n c]
+   (let [n-big (ensure-bigdec n)
+         c-big (ensure-complex-bigdec c)]
+     (->ComplexNumber (* n-big (:real c-big))
+                      (* n-big (:imaginary c-big))))))
 
 (defn c-mult
   ([] One)
   ([c] c)
-  ([c d] (->ComplexNumber (- (* (:real c) (:real d))
-                             (* (:imaginary c) (:imaginary d)))
-                          (+ (* (:real c) (:imaginary d))
-                             (* (:imaginary c) (:real d)))))
+  ([c d]
+   (let [c-big (ensure-complex-bigdec c)
+         d-big (ensure-complex-bigdec d)]
+     (->ComplexNumber (- (* (:real c-big) (:real d-big))
+                         (* (:imaginary c-big) (:imaginary d-big)))
+                      (+ (* (:real c-big) (:imaginary d-big))
+                         (* (:imaginary c-big) (:real d-big))))))
   ([c d & others]
    (reduce c-mult (list* c d others))))
 
 (defn c-div
-  ([c] (let [r (:real c)
-             i (:imaginary c)
+  ([c] (let [c-big (ensure-complex-bigdec c)
+             r (:real c-big)
+             i (:imaginary c-big)
              denom (+ (* r r) (* i i))]
          (if (zero? denom)
-           (->ComplexNumber 5000 5000) ;;; FIXME: handle infinity
-           (->ComplexNumber (/ r denom) (/ (- i) denom)))))
+           (->ComplexNumber ##Inf ##Inf)
+           (with-precision default-precision
+             (->ComplexNumber (/ r denom) (/ (- i) denom))))))
   ([c d] (c-mult c (c-div d)))
   ([c d & others]
    (c-div c (apply c-mult d others))))
 
 (defn c-exp [c]
-  (let [mag (math/exp (:real c))
-        imag (:imaginary c)
-        arg (->ComplexNumber (math/cos imag) (math/sin imag))]
+  (let [c-big (ensure-complex-bigdec c)
+        exponent (* (:real c-big) log10-E)
+        [int-val frac-val] (.divideAndRemainder exponent 1M)
+        ;; FIXME: this can crash when int-val overflows...
+        mag (* (.scaleByPowerOfTen 1M int-val)
+               (math/pow 10 frac-val))
+        imag-mod (mod (:imaginary c-big) tau)
+        arg (->ComplexNumber (math/cos imag-mod) (math/sin imag-mod))]
     (c-const-mult mag arg)))
 
 (defn c-sin [c]
