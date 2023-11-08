@@ -1,8 +1,8 @@
 (ns clj-grapher.math
-  (:require [clojure.core.async :as async :refer [<!! <! >!! >!]]
-            [clojure.math :as math]
-            [clj-grapher.color :refer [make-color composite composite*]]
-            [clj-utils.core :refer [ecase noisy-clamp]])
+  (:require
+    [clojure.core.async :as async :refer [<!! <! >!! >!]]
+    [clojure.math :as math]
+    [clj-grapher.color :as color])
   (:import [java.math MathContext]))
 
 (defn frac [n]
@@ -159,7 +159,7 @@
     (c-div csin ccos)))
 
 ;; defining a base color for less duplication
-(def ^{:private true} base-color (make-color 0 0 0 1.0))
+(def ^{:private true} base-color (color/make-color 0 0 0 1.0))
 (def ^{:private true} max-shade (/ 1 2))
 
 ;; TODO: want to bring the scale into this function as well
@@ -196,7 +196,7 @@
 (defn- get-lightness [scale n]
   (let [pith (/ math/PI)
         root-n-by-scale (math/sqrt (/ n scale))
-        clamped (noisy-clamp root-n-by-scale 0 1)]
+        clamped (clj-utils.core/noisy-clamp root-n-by-scale 0 1)]
     (* 2 pith (math/asin clamped))))
 
 (defn complex-number->color [scale ^ComplexNumber c]
@@ -209,7 +209,11 @@
                    (/ (mod argument tau) tau))
             saturation 0.5
             lightness (get-lightness scale (c-abs c))]
-        (make-color hue saturation lightness 1.0 :clj-grapher.color/hsla)))))
+        (color/make-color hue
+                          saturation
+                          lightness
+                          1.0
+                          :clj-grapher.color/hsla)))))
 
 (defn get-color-type
   [show-abs show-arg]
@@ -225,13 +229,13 @@
   ([scale ^ComplexNumber c] (get-color-from-result scale c ::abs-and-arg))
   ([scale ^ComplexNumber c kwd]
    (let [res-color (complex-number->color scale c)]
-     (ecase kwd
+     (clj-utils.core/ecase kwd
        ::none res-color
-       ::abs-only (composite (get-abs-shade c) res-color)
-       ::arg-only (composite (get-arg-shade c) res-color)
-       ::abs-and-arg (composite* (get-abs-shade c)
-                                 (get-arg-shade c)
-                                 res-color)))))
+       ::abs-only (color/composite* (get-abs-shade c) res-color)
+       ::arg-only (color/composite* (get-arg-shade c) res-color)
+       ::abs-and-arg (color/composite* (get-abs-shade c)
+                                       (get-arg-shade c)
+                                       res-color)))))
 
 (declare ^{:private true} read-calculate-loop)
 

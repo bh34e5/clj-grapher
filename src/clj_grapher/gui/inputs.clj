@@ -1,17 +1,18 @@
 (ns clj-grapher.gui.inputs
-  (:require [clj-grapher.math :refer [->ComplexNumber]]
-            [clj-grapher.gui.types
-             :refer [notify set-scale! set-function! set-show-lines!]]
-            [clj-grapher.gui.utils
-             :refer [default-font-bold initialize node-arr]]
-            [clj-utils.core :refer [ensure-seq noisy-let]])
-  (:import [java.util List]
-           [java.util.function Predicate]
-           [javafx.beans.value ChangeListener]
-           [javafx.event EventHandler]
-           [javafx.scene.control Button CheckBox Label TextField]
-           [javafx.scene.layout GridPane HBox]
-           [javafx.scene.text Text TextFlow]))
+  (:require
+    [clj-grapher.math]
+    [clj-grapher.gui.types :as types]
+    [clj-grapher.gui.utils :as utils]
+    [clj-utils.core :refer [noisy-let]])
+  (:import
+    [clj_grapher.math ComplexNumber]
+    [java.util List]
+    [java.util.function Predicate]
+    [javafx.beans.value ChangeListener]
+    [javafx.event EventHandler]
+    [javafx.scene.control Button CheckBox Label TextField]
+    [javafx.scene.layout GridPane HBox]
+    [javafx.scene.text Text TextFlow]))
 
 (alias 'gui.app 'clj-grapher.gui.application)
 
@@ -38,14 +39,14 @@
   [input]
   (cond
     (= 'z input) input
-    (= 'Re input) #(->ComplexNumber (:real %) 0)
-    (= 'Im input) #(->ComplexNumber (:imaginary %) 0)
+    (= 'Re input) #(ComplexNumber. (:real %) 0)
+    (= 'Im input) #(ComplexNumber. (:imaginary %) 0)
     :else (throw (ex-info "Unexpected symbol in function" {:symbol input}))))
 
 (defn- numerical-replacement
   [input]
   (if (number? input)
-    (->ComplexNumber input 0)
+    (ComplexNumber. input 0)
     (if (= 'i input)
       clj-grapher.math/I
       (final-symbol-check input))))
@@ -66,7 +67,7 @@
 (defn compile-function-text [text]
   (try
     (noisy-let [inner (read-string text)
-                mid-step (cons 'clj-grapher.gui.inputs/->complex-math
+                mid-step (cons `->complex-math
                                (list inner))
                 parsed (eval mid-step)]
       (println parsed)
@@ -75,32 +76,34 @@
       (println e))))
 
 (defn make-function-panel [application]
-  (let [field (initialize TextField [(or (get-in @application [:function :text])
-                                         "")]
+  (let [field (utils/initialize TextField
+                                [(or (get-in @application [:function :text])
+                                     "")]
                 (.setPromptText function-prompt-text))
-        label-text (initialize Text ["f(z) = "]
-                     (.setFont default-font-bold))
-        label-flow (TextFlow. (node-arr label-text))
-        button (initialize Button ["Graph"]
+        label-text (utils/initialize Text ["f(z) = "]
+                     (.setFont utils/default-font-bold))
+        label-flow (TextFlow. (utils/node-arr label-text))
+        button (utils/initialize Button ["Graph"]
                  (.setOnAction
                   (reify
                     EventHandler
                     (handle [_ event]
                       (let [f-text (.getText field)
                             func (compile-function-text f-text)]
-                        (set-function! application {:text f-text :object func}))
-                      (notify application ::gui.app/update-function)))))]
-    (HBox. 5.0 (node-arr label-flow field button))))
+                        (types/set-function! application
+                                             {:text f-text :object func}))
+                      (types/notify application ::gui.app/update-function)))))]
+    (HBox. 5.0 (utils/node-arr label-flow field button))))
 
 (defn make-line-checkbox [application line-type]
-  (initialize CheckBox []
+  (utils/initialize CheckBox []
     (.setSelected (boolean (get @application line-type)))
     (.setOnAction
      (reify
        EventHandler
        (handle [_ event]
-         (set-show-lines! application line-type (.isSelected this))
-         (notify application ::gui.app/update-line-type line-type))))))
+         (types/set-show-lines! application line-type (.isSelected this))
+         (types/notify application ::gui.app/update-line-type line-type))))))
 
 (def ^{:private true} regex-pattern-map
   {::continuous [#"\d{1,3}(,(\d{3},)*\d{3}|(\d{3})*\d{3})?(\.\d*)?|\.\d+"
@@ -119,7 +122,7 @@
   ([initial-value set-value! min-val max-val numeric-type]
    (let [[pattern parser] (get regex-pattern-map numeric-type)]
      (if pattern
-       (initialize TextField [(.toString initial-value)]
+       (utils/initialize TextField [(.toString initial-value)]
          (.. textProperty
              (addListener (reify
                             ChangeListener
@@ -165,24 +168,24 @@
                       (.setText scale-label (.toString @updated-scale))
                       (.add grid-pane scale-label 0 0)
                       (.add grid-pane edit-button 1 0)
-                      (set-scale! application @updated-scale)
-                      (notify application ::gui.app/update-scale))))
-    (.addRow grid-pane 0 (node-arr scale-label edit-button))
+                      (types/set-scale! application @updated-scale)
+                      (types/notify application ::gui.app/update-scale))))
+    (.addRow grid-pane 0 (utils/node-arr scale-label edit-button))
     grid-pane))
 
 (defn make-selection-panel [application]
-  (let [info-label-text (initialize Text ["Select options for the graph"]
-                          (.setFont default-font-bold))
-        info-label-flow (TextFlow. (node-arr info-label-text))
+  (let [info-label-text (utils/initialize Text ["Select options for the graph"]
+                          (.setFont utils/default-font-bold))
+        info-label-flow (TextFlow. (utils/node-arr info-label-text))
         cb-mod (make-line-checkbox application :show-mod-lines)
         cb-arg (make-line-checkbox application :show-arg-lines)
         label-mod (Label. "Modulus Lines")
         label-arg (Label. "Argument Lines")
         scale-panel (make-scale-panel application)]
-    (initialize GridPane []
+    (utils/initialize GridPane []
       (.setVgap 5.0)
       (.setHgap 10.0)
       (.add info-label-flow 0 0 2 1)
-      (.addRow 1 (node-arr cb-mod label-mod))
-      (.addRow 2 (node-arr cb-arg label-arg))
+      (.addRow 1 (utils/node-arr cb-mod label-mod))
+      (.addRow 2 (utils/node-arr cb-arg label-arg))
       (.add scale-panel 0 3 2 1))))

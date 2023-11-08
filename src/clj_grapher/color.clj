@@ -1,6 +1,7 @@
 (ns clj-grapher.color
-  (:require [clojure.math :as math]
-            [clj-utils.core :refer [ecase noisy-clamp]]))
+  (:require
+    [clojure.math :as math]
+    [clj-utils.core :as utils]))
 
 (defn- one-minus [n] (- 1 n))
 
@@ -32,7 +33,7 @@
         m (- l (/ chroma 2))
         mapper (fn [component]
                  (let [n (math/floor (* 255 (+ m component)))]
-                   (noisy-clamp n 0 255)))]
+                   (utils/noisy-clamp n 0 255)))]
     (vec (map mapper
               [(:red color-map 0)
                (:green color-map 0)
@@ -44,7 +45,7 @@
   ([[& comps]] (apply make-color comps))
   ([r g b] (make-color r g b 1.0))
   ([c1 c2 c3 a method]
-   (ecase method
+   (utils/ecase method
      ::rgba (make-color c1 c2 c3 a)
      ::hsla (let [[r g b] (hsl->rgb [c1 c2 c3])]
               (make-color r g b a))))
@@ -66,7 +67,7 @@
       (bit-shift-left (:blue color) 8)
       rounded-alpha)))
 
-(defn composite
+(defn- composite
   [c1 c2]
   (if (== 0.0 (:alpha c1) (:alpha c2))
     (make-color 0 0 0 0.0)
@@ -84,5 +85,6 @@
       (make-color (conj (vec new-comps) alpha-o)))))
 
 (defn composite*
-  [& colors]
-  (reduce composite colors))
+  ([color] color)
+  ([c1 c2] (composite c1 c2))
+  ([c1 c2 & colors] (reduce composite (list* c1 c2 colors))))

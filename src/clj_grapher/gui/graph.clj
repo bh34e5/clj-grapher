@@ -1,15 +1,16 @@
 (ns clj-grapher.gui.graph
-  (:require [clj-grapher.math
-             :refer [->ComplexNumber calculate-rectangle get-color-type]]
-            [clj-grapher.gui.types :refer [register-event-listener!]]
-            [clj-grapher.gui.utils :refer [initialize node-arr show-alert]]
-            [clj-utils.core :refer [ecase]])
-  (:import [javafx.geometry Pos]
-           [javafx.scene.canvas Canvas]
-           [javafx.scene.control Alert Alert$AlertType ButtonType]
-           [javafx.scene.layout GridPane StackPane]
-           [javafx.scene.paint Color]
-           [javafx.scene.shape Line Shape]))
+  (:require
+    [clj-grapher.math :as math]
+    [clj-grapher.gui.types :as types]
+    [clj-grapher.gui.utils :as utils])
+  (:import
+    [clj_grapher.math ComplexNumber]
+    [javafx.geometry Pos]
+    [javafx.scene.canvas Canvas]
+    [javafx.scene.control Alert Alert$AlertType ButtonType]
+    [javafx.scene.layout GridPane StackPane]
+    [javafx.scene.paint Color]
+    [javafx.scene.shape Line Shape]))
 
 (alias 'gui.app 'clj-grapher.gui.application)
 
@@ -36,7 +37,7 @@
 
 (defn- get-axis-mappings
   [direction]
-  (let [direction-coords (ecase direction
+  (let [direction-coords (clj-utils.core/ecase direction
                            ::hor {:with-axis :x :against-axis :y}
                            ::ver {:with-axis :y :against-axis :x})
         {with-axis :with-axis against-axis :against-axis} direction-coords
@@ -55,10 +56,10 @@
                          s-against (- y half-height)
                          e-with    x
                          e-against (+ y half-height))]
-    (initialize Line [(:start-x points)
-                      (:start-y points)
-                      (:end-x   points)
-                      (:end-y   points)])))
+    (utils/initialize Line [(:start-x points)
+                            (:start-y points)
+                            (:end-x   points)
+                            (:end-y   points)])))
 
 (defn- to-pixel-dim
   [ind step offset ratio]
@@ -84,10 +85,10 @@
                          s-against start-y
                          e-with    end-x
                          e-against end-y)
-        main-line (initialize Line [(:start-x points)
-                                    (:start-y points)
-                                    (:end-x points)
-                                    (:end-y points)])]
+        main-line (utils/initialize Line [(:start-x points)
+                                          (:start-y points)
+                                          (:end-x   points)
+                                          (:end-y   points)])]
     (reduce #(Shape/union %1 %2) (concat rules (list main-line)))))
 
 (defn make-axis-pane
@@ -127,7 +128,7 @@
                                (- half-height)
                                half-height
                                25)
-        border-pane (initialize GridPane []
+        border-pane (utils/initialize GridPane []
                       (.add canvas 0 0)
                       (.add v-axis 1 0)
                       (.add h-axis 0 1)
@@ -149,14 +150,15 @@
               (println "Got change in function. Current application"
                        @application)
               (let [input-fn (get-in @application [:function :object])
-                    color-type (get-color-type (:show-mod-lines @application)
-                                               (:show-arg-lines @application))]
+                    color-type (math/get-color-type
+                                (:show-mod-lines @application)
+                                (:show-arg-lines @application))]
                 (if input-fn
-                  (let [res (calculate-rectangle
+                  (let [res (math/calculate-rectangle
                              input-fn
                              color-type
                              (:scale @application)
-                             (->ComplexNumber (- half-width) (- half-height))
+                             (ComplexNumber. (- half-width) (- half-height))
                              width
                              height
                              1)]
@@ -165,15 +167,15 @@
                                 width height)
                     ;;; FIXME: this is drawing top down
                     (color-context context res 0 0))
-                  (show-alert Alert$AlertType/ERROR
-                              "Invalid function supplied"
-                              ButtonType/OK))))]
-      (register-event-listener! application
-                                ::gui.app/update-line-type
-                                handle-update-line-type)
-      (register-event-listener! application
-                                ::gui.app/update-function
-                                handle-update-function)
+                  (utils/show-alert Alert$AlertType/ERROR
+                                    "Invalid function supplied"
+                                    ButtonType/OK))))]
+      (types/register-event-listener! application
+                                      ::gui.app/update-line-type
+                                      handle-update-line-type)
+      (types/register-event-listener! application
+                                      ::gui.app/update-function
+                                      handle-update-function)
       ;; call the function to graph initially, if the function exists
       (when (:function @application) (handle-update-function)))
-    (StackPane. (node-arr border-pane))))
+    (StackPane. (utils/node-arr border-pane))))

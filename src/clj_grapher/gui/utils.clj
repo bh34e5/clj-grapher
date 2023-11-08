@@ -1,7 +1,8 @@
 (ns clj-grapher.gui.utils
-  (:import [javafx.scene Node]
-           [javafx.scene.control Alert ButtonType]
-           [javafx.scene.text Font FontWeight]))
+  (:import
+    [javafx.scene Node]
+    [javafx.scene.control Alert ButtonType]
+    [javafx.scene.text Font FontWeight]))
 
 (def default-font-bold
   (let [default (Font/getDefault)]
