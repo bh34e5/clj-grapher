@@ -14,32 +14,47 @@
 (def Zero (->ComplexNumber 0 0))
 (def One (->ComplexNumber 1 0))
 (def I (->ComplexNumber 0 1))
+(def C-Inf (->ComplexNumber ##Inf ##Inf))
+(def C-NaN (->ComplexNumber ##NaN ##NaN))
+
+(defn- c-NaN? [^ComplexNumber c]
+  (or (NaN? (:real c))
+      (NaN? (:imaginary c))))
 
 (defn- ensure-bigdec [n]
-  (if (and (number? n) (not (instance? BigDecimal n)))
+  (if (and (number? n)
+           (not (instance? BigDecimal n))
+           (not (infinite? n))
+           (not (NaN? n)))
     (BigDecimal. n)
     n))
 
+(defn- ensure-complex-bigdec [^ComplexNumber c]
+  (if (c-NaN? c)
+    C-NaN
+    (->ComplexNumber (ensure-bigdec (:real c))
+                     (ensure-bigdec (:imaginary c)))))
+
 ;;; TODO: consider making this dynamic so it can be set... but then again,
 ;;;       I don't intend to expose anything to the application so maybe not
-(defn- ensure-complex-bigdec [^ComplexNumber c]
-  (->ComplexNumber (ensure-bigdec (:real c))
-                   (ensure-bigdec (:imaginary c))))
-
 (def ^{:private true} default-precision 128)
 (def ^{:private true} log10-E (ensure-bigdec (math/log10 math/E)))
 (def ^{:private true} tau (ensure-bigdec (* 2 math/PI)))
 
 (defn c-abs [^ComplexNumber c]
-  (with-precision default-precision
-    (let [c-bigdec (ensure-complex-bigdec c)
-          r (:real c-bigdec)
-          i (:imaginary c-bigdec)
-          ssum (+ (* r r) (* i i))]
-      (.sqrt ssum MathContext/DECIMAL128))))
+  (if (c-NaN? c)
+    ##NaN
+    (with-precision default-precision
+      (let [c-bigdec (ensure-complex-bigdec c)
+            r (:real c-bigdec)
+            i (:imaginary c-bigdec)
+            ssum (+ (* r r) (* i i))]
+        (.sqrt ssum MathContext/DECIMAL128)))))
 
 (defn c-arg [^ComplexNumber c]
-  (math/atan2 (:imaginary c) (:real c)))
+  (if (c-NaN? c)
+    ##NaN
+    (math/atan2 (:imaginary c) (:real c))))
 
 (defn c-eql
   ([c] true)
@@ -52,10 +67,12 @@
   ([] Zero)
   ([c] c)
   ([c d]
-   (let [c-big (ensure-complex-bigdec c)
-         d-big (ensure-complex-bigdec d)]
-     (->ComplexNumber (+ (:real c-big) (:real d-big))
-                      (+ (:imaginary c-big) (:imaginary d-big)))))
+   (if (or (c-NaN? c) (c-NaN? d))
+     C-NaN
+     (let [c-big (ensure-complex-bigdec c)
+           d-big (ensure-complex-bigdec d)]
+       (->ComplexNumber (+ (:real c-big) (:real d-big))
+                        (+ (:imaginary c-big) (:imaginary d-big))))))
   ([c d & others]
    (reduce c-add (list* c d others))))
 
@@ -69,21 +86,25 @@
 (defn c-const-mult
   ([] One)
   ([n c]
-   (let [n-big (ensure-bigdec n)
-         c-big (ensure-complex-bigdec c)]
-     (->ComplexNumber (* n-big (:real c-big))
-                      (* n-big (:imaginary c-big))))))
+   (if (or (NaN? n) (c-NaN? c))
+     C-NaN
+     (let [n-big (ensure-bigdec n)
+           c-big (ensure-complex-bigdec c)]
+       (->ComplexNumber (* n-big (:real c-big))
+                        (* n-big (:imaginary c-big)))))))
 
 (defn c-mult
   ([] One)
   ([c] c)
   ([c d]
-   (let [c-big (ensure-complex-bigdec c)
-         d-big (ensure-complex-bigdec d)]
-     (->ComplexNumber (- (* (:real c-big) (:real d-big))
-                         (* (:imaginary c-big) (:imaginary d-big)))
-                      (+ (* (:real c-big) (:imaginary d-big))
-                         (* (:imaginary c-big) (:real d-big))))))
+   (if (or (c-NaN? c) (c-NaN? d))
+     C-NaN
+     (let [c-big (ensure-complex-bigdec c)
+           d-big (ensure-complex-bigdec d)]
+       (->ComplexNumber (- (* (:real c-big) (:real d-big))
+                           (* (:imaginary c-big) (:imaginary d-big)))
+                        (+ (* (:real c-big) (:imaginary d-big))
+                           (* (:imaginary c-big) (:real d-big)))))))
   ([c d & others]
    (reduce c-mult (list* c d others))))
 
@@ -92,24 +113,33 @@
              r (:real c-big)
              i (:imaginary c-big)
              denom (+ (* r r) (* i i))]
-         (if (zero? denom)
-           (->ComplexNumber ##Inf ##Inf)
-           (with-precision default-precision
-             (->ComplexNumber (/ r denom) (/ (- i) denom))))))
+         (cond
+           (or (infinite? r)
+               (infinite? i)) Zero
+           (zero? denom) C-Inf
+           :else (with-precision default-precision
+                   (->ComplexNumber (/ r denom) (/ (- i) denom))))))
   ([c d] (c-mult c (c-div d)))
   ([c d & others]
    (c-div c (apply c-mult d others))))
 
 (defn c-exp [c]
-  (let [c-big (ensure-complex-bigdec c)
-        exponent (* (:real c-big) log10-E)
-        [int-val frac-val] (.divideAndRemainder exponent 1M)
-        ;; FIXME: this can crash when int-val overflows...
-        mag (* (.scaleByPowerOfTen 1M int-val)
-               (math/pow 10 frac-val))
-        imag-mod (mod (:imaginary c-big) tau)
-        arg (->ComplexNumber (math/cos imag-mod) (math/sin imag-mod))]
-    (c-const-mult mag arg)))
+  (if (c-NaN? c)
+    C-NaN
+    (let [c-big (ensure-complex-bigdec c)
+          exponent (* (:real c-big) log10-E)
+          [int-val frac-val] (.divideAndRemainder exponent 1M)
+          int-val-by-max (with-precision default-precision
+                           (/ int-val (BigDecimal. Integer/MAX_VALUE)))]
+      ;; a gross hack because this kept overflowing somehow
+      (if (> int-val-by-max 0)
+        ;; If the exponent is larger than int-max, just call it infinity
+        C-Inf
+        (let [mag (* (.scaleByPowerOfTen 1M int-val)
+                     (math/pow 10 frac-val))
+              imag-mod (mod (:imaginary c-big) tau)
+              arg (->ComplexNumber (math/cos imag-mod) (math/sin imag-mod))]
+          (c-const-mult mag arg))))))
 
 (defn c-sin [c]
   (let [iz (c-mult I c)
@@ -132,20 +162,26 @@
 (def ^{:private true} base-color (make-color 0 0 0 1.0))
 (def ^{:private true} max-shade (/ 1 2))
 
+;; TODO: want to bring the scale into this function as well
 (defn- get-abs-shade [^ComplexNumber c]
   (if (c-eql c Zero)
     base-color
-    (let [a (c-abs c)
-          frac-a (/ (mod a 50) (/ 50 max-shade))]
-      (assoc base-color :alpha frac-a))))
+    (let [a (c-abs c)]
+      (if (NaN? a)
+        clj-grapher.color/White
+        ;; TODO: this maybe shouldn't be linear, and instead be logarithmic
+        (let [frac-a (/ (mod a 50) (/ 50 max-shade))]
+          (assoc base-color :alpha frac-a))))))
 
 (defn- get-arg-shade [^ComplexNumber c]
   (if (c-eql c Zero)
     base-color
-    (let [a (c-arg c)
-          circle-split (/ math/PI 6)
-          frac-a (/ (mod a circle-split) (/ circle-split max-shade))]
-      (assoc base-color :alpha frac-a))))
+    (let [a (c-arg c)]
+      (if (NaN? a)
+        clj-grapher.color/White
+        (let [circle-split (/ math/PI 6)
+              frac-a (/ (mod a circle-split) (/ circle-split max-shade))]
+          (assoc base-color :alpha frac-a))))))
 
 ;;; TODO: figure out how I want to map from the magnitude of the complex number
 ;;; to the lightness of the color... I think it might turn into something like
@@ -164,13 +200,16 @@
     (* 2 pith (math/asin clamped))))
 
 (defn complex-number->color [scale ^ComplexNumber c]
-  (let [argument (c-arg c)
-        tau (* 2 math/PI)
-        hue (* 360
-               (/ (mod argument tau) tau))
-        saturation 0.5
-        lightness (get-lightness scale (c-abs c))]
-    (make-color hue saturation lightness 1.0 :clj-grapher.color/hsla)))
+  (let [argument (c-arg c)]
+    (if (or (infinite? argument) (NaN? argument))
+      ;; infinite or NaN; return white, calculation broken
+      clj-grapher.color/White
+      (let [tau (* 2 math/PI)
+            hue (* 360
+                   (/ (mod argument tau) tau))
+            saturation 0.5
+            lightness (get-lightness scale (c-abs c))]
+        (make-color hue saturation lightness 1.0 :clj-grapher.color/hsla)))))
 
 (defn get-color-type
   [show-abs show-arg]
@@ -231,6 +270,7 @@
 (defn- calculate-rectangle*
   [app-func init width height step]
   (when (= Thread$State/NEW (.getState calculation-manager-thread))
+    (println "Starting daemon thread!!")
     (doto calculation-manager-thread
       (.setDaemon true) ;; set this thread to be a daemon so that the
       (.start)))        ;; JVM properly exits on close

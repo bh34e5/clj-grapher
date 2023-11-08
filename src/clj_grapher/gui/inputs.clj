@@ -36,9 +36,11 @@
 
 (defn- final-symbol-check
   [input]
-  (if-not (= 'z input)
-    (throw (ex-info "Unexpected symbol in function" {:symbol input}))
-    input))
+  (cond
+    (= 'z input) input
+    (= 'Re input) #(->ComplexNumber (:real %) 0)
+    (= 'Im input) #(->ComplexNumber (:imaginary %) 0)
+    :else (throw (ex-info "Unexpected symbol in function" {:symbol input}))))
 
 (defn- numerical-replacement
   [input]

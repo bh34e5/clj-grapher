@@ -53,6 +53,10 @@
    (assert-in-range 0.0 1.0 a)
    (->Color r g b a)))
 
+(def White       (make-color 255 255 255  1.0))
+(def Black       (make-color   0   0   0  1.0))
+(def Transparent (make-color   0   0   0  0.0))
+
 (defn to-hex [^Color color]
   (let [alpha (:alpha color)
         rounded-alpha (math/round (* 255 alpha))]
