@@ -5,9 +5,11 @@
     [clj-grapher.gui.utils :as utils])
   (:import
     [clj_grapher.math ComplexNumber]
+    [javafx.event EventHandler]
     [javafx.geometry Pos]
     [javafx.scene.canvas Canvas]
     [javafx.scene.control Alert Alert$AlertType ButtonType]
+    [javafx.scene.image WritableImage]
     [javafx.scene.layout GridPane StackPane]
     [javafx.scene.paint Color]
     [javafx.scene.shape Line Shape]))
@@ -109,8 +111,34 @@
     ;;;       seems like that would be expensive.
     axis-pane))
 
+(def ^{:private true} drag-event-error-message
+  "Drag release with no initial position")
+
+(defn make-image-from-buffer [color-data width height]
+  (let [img (WritableImage. width height)
+        writer (.getPixelWriter img)]
+    (doseq [[row-ind row] (map-indexed #(identity %&) color-data)]
+      (doseq [[col-ind pixel] (map-indexed #(identity %&) row)]
+        (.setColor writer
+                   row-ind
+                   col-ind
+                   (Color/rgb (int (:red pixel))
+                              (int (:green pixel))
+                              (int (:blue pixel))
+                              (:alpha pixel)))))
+    img))
+
+(defn get-diff-from-event [init event]
+  (let [end-pos {:x (.getX event)
+                 :y (.getY event)}
+        x-diff (- (:x end-pos) (:x init))
+        y-diff (- (:y end-pos) (:y init))]
+    [x-diff y-diff]))
+
 (defn make-graph-panel [application]
-  (let [width 250
+  (let [drag-initial (atom nil)
+        cur-image (atom nil)
+        width 250
         height 250
         half-width (/ width 2)
         half-height (/ height 2)
@@ -138,11 +166,77 @@
                       ;; the actual grid, not the items in the grid
                       (.setAlignment Pos/CENTER)
                       (.setHgap 10.0)
-                      (.setVgap 10.0))]
+                      (.setVgap 10.0)
+                      (.setOnMouseReleased
+                       (reify
+                         EventHandler
+                         (handle [_ event]
+                           (println "Mouse released; event:" event)
+                           (when-not (nil? @drag-initial)
+                             (let [[x-diff y-diff] (get-diff-from-event
+                                                    @drag-initial
+                                                    event)]
+                               (.restore context)
+                               (.translate context
+                                           (+ x-diff (.getTranslateX canvas))
+                                           (+ y-diff (.getTranslateY canvas))))
+                             (reset! drag-initial nil)
+                             (comment
+                               ;; TODO: re-calculate with the new bounds and
+                               ;;       redraw with the new image
+                             )))))
+                      (.setOnMouseDragged
+                       (reify
+                         EventHandler
+                         (handle [_ event]
+                           (when-not (nil? @drag-initial)
+                             (let [[x-diff y-diff] (get-diff-from-event
+                                                    @drag-initial
+                                                    event)]
+                               (.restore context)
+                               (.save context)
+                               (.translate context
+                                           (+ x-diff (.getTranslateX canvas))
+                                           (+ y-diff (.getTranslateY canvas)))
+                               (types/notify @application
+                                             ::gui.app/redraw-image))))))
+                      (.setOnDragDetected
+                       (reify
+                         EventHandler
+                         (handle [_ event]
+                           (println "Detected drag start; event:" event)
+                           ;; TODO: figure out if this should use the point
+                           ;;       field of the event...
+                           (reset! drag-initial {:x (.getX event)
+                                                 :y (.getY event)})))))]
     (doto context
       (.setFill Color/BLUE)
-      (.fillRect 0 0 width height))
-    (letfn [(handle-update-line-type [line-type]
+      (.fillRect 0 0 half-width half-height))
+    (letfn [(draw-image! [image]
+              (doto context
+                (.save)
+                (.setTransform 1.0 0.0 0.0 1.0 0.0 0.0)
+                (.clearRect 0.0 0.0 width height)
+                (.restore)
+                ;;; FIXME: this is drawing top down
+                (.drawImage image 0.0 0.0)))
+            (calculate-and-draw
+              [input-fn
+               color-type
+               & {force-update :force-update :or {force-update false}}]
+              (when (or force-update (nil? @cur-image))
+                (let [res (math/calculate-rectangle
+                           input-fn
+                           color-type
+                           (.scale @application)
+                           (ComplexNumber. (- half-width) (- half-height))
+                           width
+                           height
+                           1)
+                      img (make-image-from-buffer res width height)]
+                  (reset! cur-image img)))
+              (types/notify @application ::gui.app/redraw-image))
+            (handle-update-line-type [line-type]
               (fn [line-type]
                 (println "Got change in " line-type
                          ". Current application " @application)))
@@ -154,19 +248,7 @@
                                 (.show-mod-lines @application)
                                 (.show-arg-lines @application))]
                 (if input-fn
-                  (let [res (math/calculate-rectangle
-                             input-fn
-                             color-type
-                             (.scale @application)
-                             (ComplexNumber. (- half-width) (- half-height))
-                             width
-                             height
-                             1)]
-                    (.clearRect context
-                                0 0
-                                width height)
-                    ;;; FIXME: this is drawing top down
-                    (color-context context res 0 0))
+                  (calculate-and-draw input-fn color-type :force-update true)
                   (utils/show-alert Alert$AlertType/ERROR
                                     "Invalid function supplied"
                                     ButtonType/OK))))]
@@ -178,7 +260,11 @@
         (alter application
                types/add-event-listener!
                ::gui.app/update-function
-               handle-update-function))
+               handle-update-function)
+        (alter application
+               types/add-event-listener!
+               ::gui.app/redraw-image
+               #(draw-image! @cur-image)))
       ;; call the function to graph initially, if the function exists
       (when (.function @application) (handle-update-function)))
     (StackPane. (utils/node-arr border-pane))))
