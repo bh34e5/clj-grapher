@@ -31,7 +31,7 @@
          (reify
            EventHandler
            (handle [_ event]
-             (apply restart-application (list application complete)))))))))
+             (apply restart-application (list @application complete)))))))))
 
 (defn make-application-panel [application]
   (let [fn-panel (inputs/make-function-panel application)
@@ -57,17 +57,16 @@
   [application stage]
   (fn [& args]
     (let [complete (first args)
-          e-sys (:event-system @application)
+          e-sys (.event-system @application)
           events (keys e-sys)
           not-restart (remove #(= % ::restart-application) events)]
-      (apply types/deregister-all-event-listeners!
-             application
-             (if complete events not-restart))
+      (dosync
+        (alter application types/drop-events (if complete events not-restart)))
       (println not-restart)
       (println "Args:" args)
       (if complete
         (do
-          (dosync (alter app-vars dissoc :restart-id))
+          (dosync (alter app-vars dissoc :restart-fn))
           (start stage)) ;; complete restart
         (start stage application)))))
 
@@ -81,13 +80,14 @@
          scene (Scene. pane scene-width scene-height)]
      (dosync
        (alter app-vars assoc :application application :stage stage))
-     (when-not (get @app-vars :restart-id nil)
-       (let [restart-handler (get-restart-handler application stage)
-             handler-id (types/register-event-listener! application
-                                                        ::restart-application
-                                                        restart-handler)]
+     (when-not (get @app-vars :restart-fn nil)
+       (let [restart-handler (get-restart-handler application stage)]
          (dosync
-           (alter app-vars assoc :restart-id handler-id))))
+           (alter application
+                  types/add-event-listener!
+                  ::restart-application
+                  restart-handler)
+           (alter app-vars assoc :restart-fn restart-handler))))
      (doto stage
        (.setTitle "Complex Function Grapher - In Clojure")
        (.setScene scene)

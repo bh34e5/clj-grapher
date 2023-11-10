@@ -90,9 +90,11 @@
                     (handle [_ event]
                       (let [f-text (.getText field)
                             func (compile-function-text f-text)]
-                        (types/set-function! application
-                                             {:text f-text :object func}))
-                      (types/notify application ::gui.app/update-function)))))]
+                        (dosync
+                          (alter application
+                                 types/set-function!
+                                 {:text f-text :object func})))
+                      (types/notify @application ::gui.app/update-function)))))]
     (HBox. 5.0 (utils/node-arr label-flow field button))))
 
 (defn make-line-checkbox [application line-type]
@@ -102,8 +104,12 @@
      (reify
        EventHandler
        (handle [_ event]
-         (types/set-show-lines! application line-type (.isSelected this))
-         (types/notify application ::gui.app/update-line-type line-type))))))
+         (dosync
+           (alter application
+                  types/set-show-lines!
+                  line-type
+                  (.isSelected this)))
+         (types/notify @application ::gui.app/update-line-type line-type))))))
 
 (def ^{:private true} regex-pattern-map
   {::continuous [#"\d{1,3}(,(\d{3},)*\d{3}|(\d{3})*\d{3})?(\.\d*)?|\.\d+"
@@ -137,7 +143,7 @@
        (throw (ex-info "Invalid numeric type" {:type numeric-type}))))))
 
 (defn make-scale-panel [application]
-  (let [cur-scale (:scale @application)
+  (let [cur-scale (.scale @application)
         updated-scale (ref cur-scale)
         number-input (make-number-input
                       cur-scale
@@ -168,8 +174,9 @@
                       (.setText scale-label (.toString @updated-scale))
                       (.add grid-pane scale-label 0 0)
                       (.add grid-pane edit-button 1 0)
-                      (types/set-scale! application @updated-scale)
-                      (types/notify application ::gui.app/update-scale))))
+                      (dosync
+                        (alter application types/set-scale! @updated-scale))
+                      (types/notify @application ::gui.app/update-scale))))
     (.addRow grid-pane 0 (utils/node-arr scale-label edit-button))
     grid-pane))
 

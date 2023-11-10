@@ -151,13 +151,13 @@
                        @application)
               (let [input-fn (get-in @application [:function :object])
                     color-type (math/get-color-type
-                                (:show-mod-lines @application)
-                                (:show-arg-lines @application))]
+                                (.show-mod-lines @application)
+                                (.show-arg-lines @application))]
                 (if input-fn
                   (let [res (math/calculate-rectangle
                              input-fn
                              color-type
-                             (:scale @application)
+                             (.scale @application)
                              (ComplexNumber. (- half-width) (- half-height))
                              width
                              height
@@ -170,12 +170,15 @@
                   (utils/show-alert Alert$AlertType/ERROR
                                     "Invalid function supplied"
                                     ButtonType/OK))))]
-      (types/register-event-listener! application
-                                      ::gui.app/update-line-type
-                                      handle-update-line-type)
-      (types/register-event-listener! application
-                                      ::gui.app/update-function
-                                      handle-update-function)
+      (dosync
+        (alter application
+               types/add-event-listener!
+               ::gui.app/update-line-type
+               handle-update-line-type)
+        (alter application
+               types/add-event-listener!
+               ::gui.app/update-function
+               handle-update-function))
       ;; call the function to graph initially, if the function exists
-      (when (:function @application) (handle-update-function)))
+      (when (.function @application) (handle-update-function)))
     (StackPane. (utils/node-arr border-pane))))

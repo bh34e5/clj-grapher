@@ -1,61 +1,100 @@
 (ns clj-grapher.gui.types)
 
-(defrecord Application [function
-                        show-mod-lines
-                        show-arg-lines
-                        scale
-                        event-system])
+(defprotocol IEventSystem
+  (add-event-listener! [system event-name listener])
+  (rem-event-listener! [system event-name listener])
+  (drop-events [system event-names])
+  (notify* [system event-name args]))
 
-(defn set-function! [application func]
-  (dosync
-    (alter application assoc :function func)))
+;; Helper function to allow calling notify without wrapping arguments
+;; at the call site
+(defn notify [system event-name & args]
+  (notify* system event-name args))
 
-(defn set-show-lines! [application line-type show?]
-  (dosync
-    (alter application assoc line-type show?)))
+(defprotocol IApplication
+  (set-function! [application func])
+  (set-show-lines! [application line-type is-show])
+  (set-scale! [application scale]))
 
-(defn set-scale! [application scale]
-  (dosync
-    (alter application assoc :scale scale)))
+(deftype Application [function
+                      show-mod-lines
+                      show-arg-lines
+                      scale
+                      event-system]
+  clojure.lang.ILookup
+  (valAt [this k]
+    (.valAt this k nil))
+  (valAt [_ k not-found]
+    (case k
+      :function function
+      :show-mod-lines show-mod-lines
+      :show-arg-lines show-arg-lines
+      :scale scale
+      :event-system event-system
+      not-found))
 
-(defn register-event-listener!
-  [application event-name listener]
-  (dosync
-    (let [id (gensym)
-          modify (fn [application]
-                   (let [e-sys (:event-system application)
-                         found-or-map (get e-sys event-name {})
-                         upd-listener (assoc found-or-map id listener)
-                         upd (assoc e-sys event-name upd-listener)]
-                     (assoc application :event-system upd)))]
-      (alter application modify)
-      id)))
+  IApplication
+  (set-function! [_ func]
+    (Application. func show-mod-lines show-arg-lines scale event-system))
+  (set-show-lines! [_ line-type is-show]
+    (let [cur {:show-mod-lines show-mod-lines
+               :show-arg-lines show-arg-lines}
+          upd (assoc cur line-type is-show)]
+      (Application. function
+                    (:show-mod-lines upd)
+                    (:show-arg-lines upd)
+                    scale
+                    event-system)))
+  (set-scale! [_ upd-scale]
+    (Application. function
+                  show-mod-lines
+                  show-arg-lines
+                  upd-scale
+                  event-system))
 
-(defn deregister-event-listener!
-  [application event-name id]
-  (dosync
-    (let [modify (fn [application]
-                   (let [e-sys (:event-system application)
-                         cur (get e-sys event-name)
-                         cur-or-empty (or cur {})
-                         upd (dissoc cur-or-empty id)]
-                     (if cur
-                       (assoc application
-                            :event-system
-                            (assoc e-sys event-name upd))
-                       application)))]
-      (alter application modify))))
+  IEventSystem
+  ;;; TODO: figure out how I want to do this, because right now,
+  ;;;       calling add will add to the application system, but then
+  ;;;       return the id so that it can be removed. But I suppose
+  ;;;       rather than holding on to an id, I can just hold on to
+  ;;;       the function itself and use that to remove...
+  (add-event-listener! [_ event-name listener]
+    (let [name-set (get event-system event-name #{})
+          upd (conj name-set listener)]
+      (Application. function
+                    show-mod-lines
+                    show-arg-lines
+                    scale
+                    (assoc event-system event-name upd))))
+  (rem-event-listener! [_ event-name listener]
+    (let [name-set (get event-system event-name #{})
+          upd (remove #{listener} name-set)]
+      (Application. function
+                    show-mod-lines
+                    show-arg-lines
+                    scale
+                    (assoc event-system event-name upd))))
+  (drop-events [_ event-names]
+    (let [upd (apply dissoc event-system event-names)]
+      (Application. function show-mod-lines show-arg-lines scale upd)))
+  (notify* [_ event-name args]
+    (let [name-set (get event-system event-name #{})]
+      (doseq [listener name-set]
+        (apply listener args))))
 
-(defn deregister-all-event-listeners!
-  [application & event-names]
-  (dosync
-    (let [modify (fn [application]
-                   (let [e-sys (:event-system application)
-                         after-removal (apply dissoc e-sys event-names)]
-                     (assoc application :event-system after-removal)))]
-      (alter application modify))))
+  Object
+  (toString [_]
+    (str "Application{"
+         "function: " function
+         ", show-mod-lines: " show-mod-lines
+         ", show-arg-lines: " show-arg-lines
+         ", scale: " scale
+         ", event-system: " event-system
+         "}")))
 
-(defn notify [application event-name & args]
-  (println "Got a notification!" event-name args)
-  (doseq [listener (vals (get (:event-system @application) event-name))]
-    (apply listener args)))
+(defn map->Application [arg-map]
+  (Application. (:function arg-map)
+                (:show-mod-lines arg-map)
+                (:show-arg-lines arg-map)
+                (:scale arg-map)
+                (:event-system arg-map)))
