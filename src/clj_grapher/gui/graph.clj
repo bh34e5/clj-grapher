@@ -120,8 +120,8 @@
     (doseq [[row-ind row] (map-indexed #(identity %&) color-data)]
       (doseq [[col-ind pixel] (map-indexed #(identity %&) row)]
         (.setColor writer
-                   row-ind
                    col-ind
+                   (- height row-ind 1) ;; graphics; positive y descending
                    (Color/rgb (int (:red pixel))
                               (int (:green pixel))
                               (int (:blue pixel))
@@ -218,7 +218,6 @@
                 (.setTransform 1.0 0.0 0.0 1.0 0.0 0.0)
                 (.clearRect 0.0 0.0 width height)
                 (.restore)
-                ;;; FIXME: this is drawing top down
                 (.drawImage image 0.0 0.0)))
             (calculate-and-draw
               [input-fn
