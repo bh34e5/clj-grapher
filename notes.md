@@ -4,7 +4,7 @@
 
 Rather than setting Pixels individually in the CanvasContext2D
 
-Response:
+#### Response:
 
 Hello, this is Bing. I can help you with some information and code examples on
 how to send RGB pixel data to draw in JavaFX.

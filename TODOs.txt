@@ -8,3 +8,6 @@
   - At this point, I'm not going to worry about threading, I don't
     think. I can deal with that after I get the basics going. No need to make it
     more complicated right off the bat.
+- Write a macro that mixes the functionality of `let` and `letfn`, because right
+  now, I find myself wanting to use both at the same time, but I don't want to
+  keep nesting `(let [] (letfn [] (let [] ...)))`
