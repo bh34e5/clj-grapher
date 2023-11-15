@@ -135,13 +135,35 @@
         y-diff (- (:y end-pos) (:y init))]
     [x-diff y-diff]))
 
+(defn make-grid-pane
+  [canvas h-axis v-axis handle-m-rel handle-m-drg handle-d-det]
+  (let [pane (utils/initialize GridPane []
+               (.add canvas 0 0)
+               (.add v-axis 1 0)
+               (.add h-axis 0 1)
+               (.setGridLinesVisible false) ;; TODO: remove after debug
+               ;; This alignment might mean that the StackPane is not
+               ;; necessary... because it seems to be the alignment of
+               ;; the actual grid, not the items in the grid
+               (.setAlignment Pos/CENTER)
+               (.setHgap 10.0)
+               (.setVgap 10.0)
+               (.setOnMouseReleased handle-m-rel)
+               (.setOnMouseDragged handle-m-drg)
+               (.setOnDragDetected handle-d-det))]
+    pane))
+
 (defn make-graph-panel [application]
-  (let [drag-initial (atom nil)
-        cur-image (atom nil)
+  (let [;; constants
         width 250
         height 250
         half-width (/ width 2)
         half-height (/ height 2)
+        ;; state :blegh:
+        drag-initial (atom nil)
+        cur-image (atom nil)
+        origin (atom (ComplexNumber. (- half-width) (- half-height)))
+        ;; components / handlers
         canvas (Canvas. width height)
         context (.getGraphicsContext2D canvas)
         h-axis (make-axis-pane application
@@ -156,59 +178,49 @@
                                (- half-height)
                                half-height
                                25)
-        border-pane (utils/initialize GridPane []
-                      (.add canvas 0 0)
-                      (.add v-axis 1 0)
-                      (.add h-axis 0 1)
-                      (.setGridLinesVisible false) ;; TODO: remove after debug
-                      ;; This alignment might mean that the StackPane is not
-                      ;; necessary... because it seems to be the alignment of
-                      ;; the actual grid, not the items in the grid
-                      (.setAlignment Pos/CENTER)
-                      (.setHgap 10.0)
-                      (.setVgap 10.0)
-                      (.setOnMouseReleased
-                       (reify
-                         EventHandler
-                         (handle [_ event]
-                           (println "Mouse released; event:" event)
-                           (when-not (nil? @drag-initial)
-                             (let [[x-diff y-diff] (get-diff-from-event
-                                                    @drag-initial
-                                                    event)]
-                               (.restore context)
-                               (.translate context
-                                           (+ x-diff (.getTranslateX canvas))
-                                           (+ y-diff (.getTranslateY canvas))))
-                             (reset! drag-initial nil)
-                             (comment
-                               ;; TODO: re-calculate with the new bounds and
-                               ;;       redraw with the new image
-                             )))))
-                      (.setOnMouseDragged
-                       (reify
-                         EventHandler
-                         (handle [_ event]
-                           (when-not (nil? @drag-initial)
-                             (let [[x-diff y-diff] (get-diff-from-event
-                                                    @drag-initial
-                                                    event)]
-                               (.restore context)
-                               (.save context)
-                               (.translate context
-                                           (+ x-diff (.getTranslateX canvas))
-                                           (+ y-diff (.getTranslateY canvas)))
-                               (types/notify @application
-                                             ::gui.app/redraw-image))))))
-                      (.setOnDragDetected
-                       (reify
-                         EventHandler
-                         (handle [_ event]
-                           (println "Detected drag start; event:" event)
-                           ;; TODO: figure out if this should use the point
-                           ;;       field of the event...
-                           (reset! drag-initial {:x (.getX event)
-                                                 :y (.getY event)})))))]
+        handle-m-rel (reify
+                       EventHandler
+                       (handle [_ event]
+                         (println "Mouse released; event:" event)
+                         (when-not (nil? @drag-initial)
+                           (let [[x-diff y-diff] (get-diff-from-event
+                                                  @drag-initial
+                                                  event)]
+                             (.restore context)
+                             (swap! origin
+                                    math/c-sub
+                                    (ComplexNumber. x-diff (- y-diff))))
+                           (reset! drag-initial nil)
+                           (types/notify @application
+                                         ::gui.app/update-function))))
+        handle-m-drg (reify
+                       EventHandler
+                       (handle [_ event]
+                         (when-not (nil? @drag-initial)
+                           (let [[x-diff y-diff] (get-diff-from-event
+                                                  @drag-initial
+                                                  event)]
+                             (.restore context)
+                             (.save context)
+                             (.translate context
+                                         (+ x-diff (.getTranslateX canvas))
+                                         (+ y-diff (.getTranslateY canvas)))
+                             (types/notify @application
+                                           ::gui.app/redraw-image)))))
+        handle-d-det (reify
+                       EventHandler
+                       (handle [_ event]
+                         (println "Detected drag start; event:" event)
+                         ;; TODO: figure out if this should use the point
+                         ;;       field of the event...
+                         (reset! drag-initial {:x (.getX event)
+                                               :y (.getY event)})))
+        grid-pane (make-grid-pane canvas
+                                  h-axis
+                                  v-axis
+                                  handle-m-rel
+                                  handle-m-drg
+                                  handle-d-det)]
     (doto context
       (.setFill Color/BLUE)
       (.fillRect 0 0 half-width half-height))
@@ -228,7 +240,7 @@
                            input-fn
                            color-type
                            (.scale @application)
-                           (ComplexNumber. (- half-width) (- half-height))
+                           @origin
                            width
                            height
                            1)
@@ -266,4 +278,4 @@
                #(draw-image! @cur-image)))
       ;; call the function to graph initially, if the function exists
       (when (.function @application) (handle-update-function)))
-    (StackPane. (utils/node-arr border-pane))))
+    (StackPane. (utils/node-arr grid-pane))))
