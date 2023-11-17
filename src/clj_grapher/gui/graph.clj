@@ -5,6 +5,7 @@
     [clj-grapher.gui.utils :as utils])
   (:import
     [clj_grapher.math ComplexNumber]
+    [javafx.application Platform]
     [javafx.event EventHandler]
     [javafx.geometry Pos]
     [javafx.scene.canvas Canvas]
@@ -178,43 +179,37 @@
                                (- half-height)
                                half-height
                                25)
-        handle-m-rel (reify
-                       EventHandler
-                       (handle [_ event]
-                         (println "Mouse released; event:" event)
-                         (when-not (nil? @drag-initial)
-                           (let [[x-diff y-diff] (get-diff-from-event
-                                                  @drag-initial
-                                                  event)]
-                             (.restore context)
-                             (swap! origin
-                                    math/c-sub
-                                    (ComplexNumber. x-diff (- y-diff))))
-                           (reset! drag-initial nil)
-                           (types/notify @application
-                                         ::gui.app/update-function))))
-        handle-m-drg (reify
-                       EventHandler
-                       (handle [_ event]
-                         (when-not (nil? @drag-initial)
-                           (let [[x-diff y-diff] (get-diff-from-event
-                                                  @drag-initial
-                                                  event)]
-                             (.restore context)
-                             (.save context)
-                             (.translate context
-                                         (+ x-diff (.getTranslateX canvas))
-                                         (+ y-diff (.getTranslateY canvas)))
-                             (types/notify @application
-                                           ::gui.app/redraw-image)))))
-        handle-d-det (reify
-                       EventHandler
-                       (handle [_ event]
-                         (println "Detected drag start; event:" event)
-                         ;; TODO: figure out if this should use the point
-                         ;;       field of the event...
-                         (reset! drag-initial {:x (.getX event)
-                                               :y (.getY event)})))
+        handle-m-rel
+        (reify
+          EventHandler
+          (handle [_ event]
+            (println "Mouse released; event:" event)
+            (when-not (nil? @drag-initial)
+              (let [[x-diff y-diff] (get-diff-from-event @drag-initial event)]
+                (.restore context)
+                (swap! origin math/c-sub (ComplexNumber. x-diff (- y-diff))))
+              (reset! drag-initial nil)
+              (types/notify @application ::gui.app/update-function))))
+        handle-m-drg
+        (reify
+          EventHandler
+          (handle [_ event]
+            (when-not (nil? @drag-initial)
+              (let [[x-diff y-diff] (get-diff-from-event @drag-initial event)]
+                (.restore context)
+                (.save context)
+                (.translate context
+                            (+ x-diff (.getTranslateX canvas))
+                            (+ y-diff (.getTranslateY canvas)))
+                (types/notify @application ::gui.app/redraw-image)))))
+        handle-d-det
+        (reify
+          EventHandler
+          (handle [_ event]
+            (println "Detected drag start; event:" event)
+            ;; TODO: figure out if this should use the point field of
+            ;;       the event...
+            (reset! drag-initial {:x (.getX event) :y (.getY event)})))
         grid-pane (make-grid-pane canvas
                                   h-axis
                                   v-axis
@@ -225,12 +220,13 @@
       (.setFill Color/BLUE)
       (.fillRect 0 0 half-width half-height))
     (letfn [(draw-image! [image]
-              (doto context
-                (.save)
-                (.setTransform 1.0 0.0 0.0 1.0 0.0 0.0)
-                (.clearRect 0.0 0.0 width height)
-                (.restore)
-                (.drawImage image 0.0 0.0)))
+              (Platform/runLater
+               #(doto context
+                  (.save)
+                  (.setTransform 1.0 0.0 0.0 1.0 0.0 0.0)
+                  (.clearRect 0.0 0.0 width height)
+                  (.restore)
+                  (.drawImage image 0.0 0.0))))
             (calculate-and-draw
               [input-fn
                color-type
@@ -260,9 +256,10 @@
                                 (.show-arg-lines @application))]
                 (if input-fn
                   (calculate-and-draw input-fn color-type :force-update true)
-                  (utils/show-alert Alert$AlertType/ERROR
-                                    "Invalid function supplied"
-                                    ButtonType/OK))))]
+                  (Platform/runLater
+                   #(utils/show-alert Alert$AlertType/ERROR
+                                      "Invalid function supplied"
+                                      ButtonType/OK)))))]
       (dosync
         (alter application
                types/add-event-listener!

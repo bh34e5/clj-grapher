@@ -5,6 +5,7 @@
     [clj-grapher.gui.types :as types]
     [clj-grapher.gui.utils :as utils])
   (:import
+    [javafx.application Platform]
     [javafx.event EventHandler]
     [javafx.scene Scene]
     [javafx.scene.control Button]
@@ -64,11 +65,12 @@
         (alter application types/drop-events (if complete events not-restart)))
       (println not-restart)
       (println "Args:" args)
-      (if complete
-        (do
-          (dosync (alter app-vars dissoc :restart-fn))
-          (start stage)) ;; complete restart
-        (start stage application)))))
+      (Platform/runLater
+       #(if complete
+          (do
+            (dosync (alter app-vars dissoc :restart-fn))
+            (start stage)) ;; complete restart
+          (start stage application))))))
 
 ;;; TODO: investigate the app not closing completely? I thought
 ;;;       I fixed that one, but it may not actually be done...

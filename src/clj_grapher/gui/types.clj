@@ -80,7 +80,9 @@
   (notify* [_ event-name args]
     (let [name-set (get event-system event-name #{})]
       (doseq [listener name-set]
-        (apply listener args))))
+        ;;; TODO: remove the deref, right now it's here to realize exceptions
+        ;;;       that are getting thrown in the pool thread
+        @(future (apply listener args)))))
 
   Object
   (toString [_]
