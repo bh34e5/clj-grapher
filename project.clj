@@ -7,6 +7,8 @@
                  [org.clojure/core.async "1.5.648"]
                  [org.openjfx/javafx-controls "17.0.9"]
                  [clj-utils "0.1.0-SNAPSHOT"]]
+  :source-paths ["src/clojure"]
+  :java-source-paths ["src/java"]
   :main clj-grapher.entry
   :aot [clj-grapher.entry clj-grapher.gui.core]
   :target-path "target/%s"

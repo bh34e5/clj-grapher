@@ -58,6 +58,9 @@
   ;;;       return the id so that it can be removed. But I suppose
   ;;;       rather than holding on to an id, I can just hold on to
   ;;;       the function itself and use that to remove...
+  ;;; TODO: consider turning these into `weak-ref`s and occasionally
+  ;;;       (on the addition of a new listener?) check for nil listeners
+  ;;;       and remove those that have expired
   (add-event-listener! [_ event-name listener]
     (let [name-set (get event-system event-name #{})
           upd (conj name-set listener)]
